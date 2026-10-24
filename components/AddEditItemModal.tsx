@@ -68,10 +68,17 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   const [author, setAuthor] = useState('');
   const [publisher, setPublisher] = useState('');
 
-  // Image suggestions
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  // Image suggestions pool and loading/error states
+  const [rawSuggestions, setRawSuggestions] = useState<string[]>([]);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [compressing, setCompressing] = useState(false);
+
+  // Active suggestions: up to 3 valid, non-failed images
+  const displayedSuggestions = rawSuggestions
+    .filter((url) => !failedImages.has(url))
+    .slice(0, 3);
 
   // Track if user explicitly supplied custom image (upload or typed URL)
   const isManualCoverRef = useRef(false);
@@ -119,7 +126,9 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setSeasons('1');
       setAuthor('');
       setPublisher('');
-      setSuggestions([]);
+      setRawSuggestions([]);
+      setFailedImages(new Set());
+      setLoadedImages(new Set());
     }
   }, [isOpen, editingItem, initialCategory]);
 
@@ -127,7 +136,9 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     async (searchTitle: string, mediaType: MediaType, forceAutoSelect = false) => {
       const trimmed = searchTitle.trim();
       if (trimmed.length < 2) {
-        setSuggestions([]);
+        setRawSuggestions([]);
+        setFailedImages(new Set());
+        setLoadedImages(new Set());
         return;
       }
 
@@ -144,18 +155,24 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
         if (res.ok) {
           const data = await res.json();
           const imgs: string[] = Array.isArray(data.images) ? data.images : [];
-          setSuggestions(imgs);
+          setRawSuggestions(imgs);
+          setFailedImages(new Set());
+          setLoadedImages(new Set());
 
           // Auto-select the top suggested image if user hasn't manually customized it
           if (imgs.length > 0 && (!isManualCoverRef.current || forceAutoSelect)) {
             setCoverImage(imgs[0]);
           }
         } else {
-          setSuggestions([]);
+          setRawSuggestions([]);
+          setFailedImages(new Set());
+          setLoadedImages(new Set());
         }
       } catch {
         if (reqId === activeReqIdRef.current) {
-          setSuggestions([]);
+          setRawSuggestions([]);
+          setFailedImages(new Set());
+          setLoadedImages(new Set());
         }
       } finally {
         if (reqId === activeReqIdRef.current) {
@@ -171,7 +188,9 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     if (!isOpen) return;
     const trimmed = title.trim();
     if (trimmed.length < 2) {
-      setSuggestions([]);
+      setRawSuggestions([]);
+      setFailedImages(new Set());
+      setLoadedImages(new Set());
       return;
     }
 
@@ -181,6 +200,37 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
 
     return () => clearTimeout(timer);
   }, [title, type, isOpen, fetchPosterSuggestions]);
+
+  // Handle broken/failing image URL: remove it immediately so no empty card is exhibited
+  const handleImageError = useCallback(
+    (failedUrl: string) => {
+      setFailedImages((prev) => {
+        const next = new Set(prev);
+        next.add(failedUrl);
+        return next;
+      });
+
+      // If the currently selected cover was this failed image, auto-switch to next valid candidate
+      setCoverImage((current) => {
+        if (current === failedUrl) {
+          const remaining = rawSuggestions.filter(
+            (url) => url !== failedUrl && !failedImages.has(url)
+          );
+          return remaining.length > 0 ? remaining[0] : '';
+        }
+        return current;
+      });
+    },
+    [rawSuggestions, failedImages]
+  );
+
+  const handleImageLoad = useCallback((loadedUrl: string) => {
+    setLoadedImages((prev) => {
+      const next = new Set(prev);
+      next.add(loadedUrl);
+      return next;
+    });
+  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -573,7 +623,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             )}
           </div>
 
-          {/* Poster Cover Section: Auto-Suggestions + Live Preview + Upload + URL */}
+          {/* Poster Cover Section: 3 Auto-Suggestions + Live Preview + Upload + URL */}
           <div className="rounded-xl border border-[#2A2F37] bg-[#16191D] p-4">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -627,13 +677,17 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                       src={previewCover}
                       alt="Cover preview"
                       onError={(e) => {
-                        const fallback = createPosterSvgDataUrl(
-                          title || 'Poster',
-                          year,
-                          type
-                        );
-                        if (e.currentTarget.src !== fallback) {
-                          e.currentTarget.src = fallback;
+                        if (coverImage) {
+                          handleImageError(coverImage);
+                        } else {
+                          const fallback = createPosterSvgDataUrl(
+                            title || 'Poster',
+                            year,
+                            type
+                          );
+                          if (e.currentTarget.src !== fallback) {
+                            e.currentTarget.src = fallback;
+                          }
                         }
                       }}
                       className="h-full w-full object-cover transition-opacity duration-300"
@@ -645,7 +699,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                 </span>
               </div>
 
-              {/* Right Column: 5 Auto-Suggestions + Upload + Direct URL */}
+              {/* Right Column: 3 Auto-Suggestions + Upload + Direct URL */}
               <div className="min-w-0 flex-1 space-y-3">
                 <div>
                   <div className="mb-2 flex items-center justify-between">
@@ -660,23 +714,26 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                     )}
                   </div>
 
-                  {/* Suggestions Grid or Skeletons */}
+                  {/* Exactly 3 Suggestions Grid or 3 Skeletons */}
                   {loadingSuggestions ? (
-                    <div className="grid grid-cols-5 gap-2">
-                      {[0, 1, 2, 3, 4].map((i) => (
+                    <div className="grid grid-cols-3 gap-3">
+                      {[0, 1, 2].map((i) => (
                         <div
                           key={`sugg-skeleton-${i}`}
-                          className="relative aspect-[2/3] overflow-hidden rounded-lg border border-[#2A2F37] bg-[#16191D] animate-pulse"
+                          className="relative aspect-[2/3] overflow-hidden rounded-xl border border-[#2A2F37] bg-[#16191D] animate-pulse shadow-sm"
                         >
                           <div className="absolute inset-0 bg-gradient-to-b from-[#2A2F37]/30 via-transparent to-[#0D0F11]/80" />
-                          <div className="absolute bottom-2 left-1.5 right-1.5 h-1.5 rounded-full bg-[#2A2F37]" />
+                          <div className="absolute top-2 left-2 h-4 w-4 rounded bg-[#2A2F37]/60" />
+                          <div className="absolute bottom-2.5 left-2 right-2 h-2 rounded bg-[#2A2F37]/70" />
                         </div>
                       ))}
                     </div>
-                  ) : suggestions.length > 0 ? (
-                    <div className="grid grid-cols-5 gap-2">
-                      {suggestions.map((imgUrl, idx) => {
+                  ) : displayedSuggestions.length > 0 ? (
+                    <div className="grid grid-cols-3 gap-3">
+                      {displayedSuggestions.map((imgUrl, idx) => {
                         const isSelected = coverImage === imgUrl;
+                        const isLoaded = loadedImages.has(imgUrl);
+
                         return (
                           <button
                             key={`${imgUrl}-${idx}`}
@@ -686,32 +743,39 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                               isManualCoverRef.current = false;
                             }}
                             title={`Option ${idx + 1}`}
-                            className={`group relative aspect-[2/3] overflow-hidden rounded-lg border transition-all duration-200 ${
+                            className={`group relative aspect-[2/3] overflow-hidden rounded-xl border transition-all duration-200 ${
                               isSelected
-                                ? 'border-2 border-[#10B981] ring-2 ring-[#10B981]/25 shadow-lg shadow-[#10B981]/20 scale-[1.02]'
-                                : 'border-[#2A2F37] hover:border-[#6EE7B7]/70 hover:scale-[1.03]'
+                                ? 'border-2 border-[#10B981] ring-2 ring-[#10B981]/25 shadow-xl shadow-[#10B981]/20 scale-[1.02]'
+                                : 'border-[#2A2F37] bg-[#0D0F11] hover:border-[#6EE7B7]/70 hover:scale-[1.03]'
                             }`}
                           >
+                            {/* Subtle shimmer until image bit renders */}
+                            {!isLoaded && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-[#16191D] animate-pulse">
+                                <div className="h-4 w-4 rounded-full border-2 border-[#2A2F37] border-t-[#10B981] animate-spin" />
+                              </div>
+                            )}
+
                             <img
                               src={imgUrl}
                               alt={`Suggestion ${idx + 1}`}
-                              onError={(e) => {
-                                // If suggestion image fails to load, hide thumbnail gracefully
-                                e.currentTarget.style.display = 'none';
-                              }}
-                              className="h-full w-full object-cover bg-[#0D0F11]"
+                              onLoad={() => handleImageLoad(imgUrl)}
+                              onError={() => handleImageError(imgUrl)}
+                              className={`h-full w-full object-cover transition-opacity duration-300 ${
+                                isLoaded ? 'opacity-100' : 'opacity-0'
+                              }`}
                             />
 
                             {/* Option Index Badge */}
-                            <div className="absolute top-1 left-1 flex h-4 w-4 items-center justify-center rounded-sm bg-[#0D0F11]/75 text-[9px] font-bold text-[#F3F4F6] backdrop-blur-xs">
+                            <div className="absolute top-1.5 left-1.5 flex h-4 w-4 items-center justify-center rounded-sm bg-[#0D0F11]/80 text-[10px] font-bold text-[#F3F4F6] backdrop-blur-xs">
                               {idx + 1}
                             </div>
 
                             {/* Selected Checkmark Overlay */}
                             {isSelected && (
                               <div className="absolute inset-0 flex items-center justify-center bg-[#0D0F11]/40 backdrop-blur-[0.5px]">
-                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#10B981] text-[#0D0F11] shadow-md">
-                                  <Check className="h-3.5 w-3.5 stroke-[3]" />
+                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#10B981] text-[#0D0F11] shadow-md">
+                                  <Check className="h-4 w-4 stroke-[3]" />
                                 </span>
                               </div>
                             )}
@@ -720,7 +784,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                       })}
                     </div>
                   ) : (
-                    <div className="flex h-20 flex-col items-center justify-center rounded-lg border border-dashed border-[#2A2F37] bg-[#0D0F11]/40 px-3 text-center text-xs text-[#9CA3AF]">
+                    <div className="flex h-24 flex-col items-center justify-center rounded-lg border border-dashed border-[#2A2F37] bg-[#0D0F11]/40 px-3 text-center text-xs text-[#9CA3AF]">
                       <p>
                         {title.trim().length < 2
                           ? t.modal.typeToSuggest

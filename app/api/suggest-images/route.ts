@@ -362,10 +362,10 @@ export async function GET(request: Request) {
       }
     }
 
-    // Deduplicate and filter valid images
+    // Deduplicate and filter valid images (provide pool for client to select 3 loaded ones)
     const uniqueImages = Array.from(
       new Set(images.filter((url) => typeof url === 'string' && url.startsWith('https://')))
-    ).slice(0, 5);
+    ).slice(0, 6);
 
     return NextResponse.json(
       { images: uniqueImages },
