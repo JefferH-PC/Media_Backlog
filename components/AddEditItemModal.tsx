@@ -12,6 +12,8 @@ import {
   Link as LinkIcon,
   Check,
   Loader2,
+  Sparkles,
+  Trash2,
 } from 'lucide-react';
 import {
   ItemStatus,
@@ -71,6 +73,11 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [compressing, setCompressing] = useState(false);
 
+  // Track if user explicitly supplied custom image (upload or typed URL)
+  const isManualCoverRef = useRef(false);
+  // Request tracking to prevent out-of-order race conditions
+  const activeReqIdRef = useRef(0);
+
   // Initialize form when modal opens or editingItem changes
   useEffect(() => {
     if (!isOpen) return;
@@ -82,6 +89,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle(editingItem.title);
       setYear(String(editingItem.year));
       setCoverImage(editingItem.coverImage || '');
+      isManualCoverRef.current = Boolean(editingItem.coverImage);
 
       if (editingItem.type === 'games') {
         setDeveloper(editingItem.developer);
@@ -103,6 +111,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle('');
       setYear(String(new Date().getFullYear()));
       setCoverImage('');
+      isManualCoverRef.current = false;
       setDeveloper('');
       setAchievements('0');
       setPriceBRL('0.00');
@@ -115,33 +124,49 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   }, [isOpen, editingItem, initialCategory]);
 
   const fetchPosterSuggestions = useCallback(
-    async (searchTitle: string, mediaType: MediaType) => {
+    async (searchTitle: string, mediaType: MediaType, forceAutoSelect = false) => {
       const trimmed = searchTitle.trim();
       if (trimmed.length < 2) {
         setSuggestions([]);
         return;
       }
+
+      const reqId = ++activeReqIdRef.current;
       setLoadingSuggestions(true);
+
       try {
         const res = await fetch(
           `/api/suggest-images?q=${encodeURIComponent(trimmed)}&type=${encodeURIComponent(mediaType)}`
         );
+
+        if (reqId !== activeReqIdRef.current) return;
+
         if (res.ok) {
           const data = await res.json();
-          setSuggestions(Array.isArray(data.images) ? data.images : []);
+          const imgs: string[] = Array.isArray(data.images) ? data.images : [];
+          setSuggestions(imgs);
+
+          // Auto-select the top suggested image if user hasn't manually customized it
+          if (imgs.length > 0 && (!isManualCoverRef.current || forceAutoSelect)) {
+            setCoverImage(imgs[0]);
+          }
         } else {
           setSuggestions([]);
         }
       } catch {
-        setSuggestions([]);
+        if (reqId === activeReqIdRef.current) {
+          setSuggestions([]);
+        }
       } finally {
-        setLoadingSuggestions(false);
+        if (reqId === activeReqIdRef.current) {
+          setLoadingSuggestions(false);
+        }
       }
     },
     []
   );
 
-  // Debounced auto-suggest as title or type changes
+  // Debounced auto-suggest as title changes
   useEffect(() => {
     if (!isOpen) return;
     const trimmed = title.trim();
@@ -152,7 +177,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
 
     const timer = setTimeout(() => {
       fetchPosterSuggestions(trimmed, type);
-    }, 450);
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [title, type, isOpen, fetchPosterSuggestions]);
@@ -177,6 +202,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     try {
       const webpBase64 = await compressImage(file, 300, 450, 0.75);
       setCoverImage(webpBase64);
+      isManualCoverRef.current = true;
     } catch (err) {
       console.error('Image compression failed:', err);
     } finally {
@@ -263,7 +289,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     coverImage.trim() ||
     createPosterSvgDataUrl(
       title.trim() || 'Preview',
-      year.trim() || '2025',
+      year.trim() || String(new Date().getFullYear()),
       type.toUpperCase()
     );
 
@@ -281,7 +307,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       aria-labelledby="modal-title"
       className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D0F11]/80 p-4 backdrop-blur-xs"
     >
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#2A2F37] bg-[#1F2329] p-6">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#2A2F37] bg-[#1F2329] p-6 shadow-2xl">
         {/* Header */}
         <div className="mb-5 flex items-center justify-between border-b border-[#2A2F37] pb-4">
           <h2 id="modal-title" className="text-base font-bold text-[#F3F4F6]">
@@ -312,14 +338,21 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                     key={cat.id}
                     type="button"
                     onClick={() => {
-                      setType(cat.id);
-                      if (cat.id === 'movies') {
+                      const newType = cat.id;
+                      setType(newType);
+                      if (newType === 'movies') {
                         setIsCurrentlyConsuming(false);
                       }
+                      if (!isManualCoverRef.current) {
+                        setCoverImage('');
+                      }
+                      if (title.trim().length >= 2) {
+                        fetchPosterSuggestions(title, newType, true);
+                      }
                     }}
-                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all ${
                       active
-                        ? 'border-[#10B981] bg-[#064E3B] text-[#6EE7B7]'
+                        ? 'border-[#10B981] bg-[#064E3B] text-[#6EE7B7] shadow-sm'
                         : 'border-[#2A2F37] bg-[#16191D] text-[#9CA3AF] hover:border-[#3B424D] hover:text-[#F3F4F6]'
                     }`}
                   >
@@ -540,16 +573,34 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             )}
           </div>
 
-          {/* Poster Cover Section: Auto-Suggestions + Upload + URL */}
+          {/* Poster Cover Section: Auto-Suggestions + Live Preview + Upload + URL */}
           <div className="rounded-xl border border-[#2A2F37] bg-[#16191D] p-4">
             <div className="mb-3 flex items-center justify-between">
-              <span className="text-xs font-semibold text-[#F3F4F6]">
-                {t.modal.coverSection}
-              </span>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-[#10B981]" />
+                <span className="text-xs font-semibold text-[#F3F4F6]">
+                  {t.modal.coverSection}
+                </span>
+                {coverImage && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCoverImage('');
+                      isManualCoverRef.current = false;
+                    }}
+                    title="Reset to default SVG"
+                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-[#9CA3AF] transition-colors hover:bg-[#2A2F37] hover:text-[#EF4444]"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>{locale === 'pt-BR' ? 'Remover capa' : 'Clear cover'}</span>
+                  </button>
+                )}
+              </div>
+
               <button
                 type="button"
                 disabled={title.trim().length < 2 || loadingSuggestions}
-                onClick={() => fetchPosterSuggestions(title, type)}
+                onClick={() => fetchPosterSuggestions(title, type, true)}
                 className="inline-flex items-center gap-1.5 rounded-md border border-[#2A2F37] bg-[#1F2329] px-2.5 py-1 text-[11px] font-medium text-[#9CA3AF] transition-colors hover:border-[#3B424D] hover:text-[#F3F4F6] disabled:opacity-40"
               >
                 <RefreshCw
@@ -562,36 +613,65 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             <div className="flex flex-col gap-4 sm:flex-row">
               {/* Live 2:3 Poster Preview */}
               <div className="mx-auto flex flex-col items-center sm:mx-0">
-                <div className="relative h-[150px] w-[100px] shrink-0 overflow-hidden rounded-lg border border-[#2A2F37] bg-[#0D0F11]">
-                  <img
-                    src={previewCover}
-                    alt="Cover preview"
-                    onError={(e) => {
-                      const fallback = createPosterSvgDataUrl(
-                        title || 'Poster',
-                        year,
-                        type
-                      );
-                      if (e.currentTarget.src !== fallback) {
-                        e.currentTarget.src = fallback;
-                      }
-                    }}
-                    className="h-full w-full object-cover"
-                  />
+                <div className="relative h-[160px] w-[107px] shrink-0 overflow-hidden rounded-xl border border-[#2A2F37] bg-[#0D0F11] shadow-lg">
+                  {loadingSuggestions && !coverImage ? (
+                    <div className="relative flex h-full w-full animate-pulse flex-col items-center justify-center bg-[#1F2329]">
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0D0F11] via-transparent to-transparent" />
+                      <Loader2 className="h-6 w-6 animate-spin text-[#10B981]" />
+                      <span className="mt-2 text-[10px] font-medium text-[#9CA3AF]">
+                        {locale === 'pt-BR' ? 'Buscando...' : 'Searching...'}
+                      </span>
+                    </div>
+                  ) : (
+                    <img
+                      src={previewCover}
+                      alt="Cover preview"
+                      onError={(e) => {
+                        const fallback = createPosterSvgDataUrl(
+                          title || 'Poster',
+                          year,
+                          type
+                        );
+                        if (e.currentTarget.src !== fallback) {
+                          e.currentTarget.src = fallback;
+                        }
+                      }}
+                      className="h-full w-full object-cover transition-opacity duration-300"
+                    />
+                  )}
                 </div>
+                <span className="mt-1.5 text-[10px] font-medium text-[#9CA3AF]">
+                  {locale === 'pt-BR' ? 'Pré-visualização' : 'Live Preview'}
+                </span>
               </div>
 
               {/* Right Column: 5 Auto-Suggestions + Upload + Direct URL */}
               <div className="min-w-0 flex-1 space-y-3">
                 <div>
-                  <p className="mb-1.5 text-[11px] font-medium text-[#9CA3AF]">
-                    {t.modal.suggestCovers}
-                  </p>
+                  <div className="mb-2 flex items-center justify-between">
+                    <p className="text-[11px] font-medium text-[#9CA3AF]">
+                      {t.modal.suggestCovers}
+                    </p>
+                    {loadingSuggestions && (
+                      <span className="flex items-center gap-1.5 text-[10px] text-[#10B981]">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>{t.modal.fetchingSuggestions}</span>
+                      </span>
+                    )}
+                  </div>
 
+                  {/* Suggestions Grid or Skeletons */}
                   {loadingSuggestions ? (
-                    <div className="flex h-20 items-center justify-center rounded-lg border border-dashed border-[#2A2F37] bg-[#0D0F11]/60 text-xs text-[#9CA3AF]">
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin text-[#10B981]" />
-                      <span>{t.modal.fetchingSuggestions}</span>
+                    <div className="grid grid-cols-5 gap-2">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <div
+                          key={`sugg-skeleton-${i}`}
+                          className="relative aspect-[2/3] overflow-hidden rounded-lg border border-[#2A2F37] bg-[#16191D] animate-pulse"
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-b from-[#2A2F37]/30 via-transparent to-[#0D0F11]/80" />
+                          <div className="absolute bottom-2 left-1.5 right-1.5 h-1.5 rounded-full bg-[#2A2F37]" />
+                        </div>
+                      ))}
                     </div>
                   ) : suggestions.length > 0 ? (
                     <div className="grid grid-cols-5 gap-2">
@@ -601,21 +681,36 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                           <button
                             key={`${imgUrl}-${idx}`}
                             type="button"
-                            onClick={() => setCoverImage(imgUrl)}
-                            className={`group relative aspect-[2/3] overflow-hidden rounded-md border transition-all ${
+                            onClick={() => {
+                              setCoverImage(imgUrl);
+                              isManualCoverRef.current = false;
+                            }}
+                            title={`Option ${idx + 1}`}
+                            className={`group relative aspect-[2/3] overflow-hidden rounded-lg border transition-all duration-200 ${
                               isSelected
-                                ? 'border-2 border-[#10B981]'
-                                : 'border-[#2A2F37] hover:border-[#9CA3AF]'
+                                ? 'border-2 border-[#10B981] ring-2 ring-[#10B981]/25 shadow-lg shadow-[#10B981]/20 scale-[1.02]'
+                                : 'border-[#2A2F37] hover:border-[#6EE7B7]/70 hover:scale-[1.03]'
                             }`}
                           >
                             <img
                               src={imgUrl}
                               alt={`Suggestion ${idx + 1}`}
-                              className="h-full w-full object-cover"
+                              onError={(e) => {
+                                // If suggestion image fails to load, hide thumbnail gracefully
+                                e.currentTarget.style.display = 'none';
+                              }}
+                              className="h-full w-full object-cover bg-[#0D0F11]"
                             />
+
+                            {/* Option Index Badge */}
+                            <div className="absolute top-1 left-1 flex h-4 w-4 items-center justify-center rounded-sm bg-[#0D0F11]/75 text-[9px] font-bold text-[#F3F4F6] backdrop-blur-xs">
+                              {idx + 1}
+                            </div>
+
+                            {/* Selected Checkmark Overlay */}
                             {isSelected && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-[#0D0F11]/60">
-                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#10B981] text-[#0D0F11]">
+                              <div className="absolute inset-0 flex items-center justify-center bg-[#0D0F11]/40 backdrop-blur-[0.5px]">
+                                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#10B981] text-[#0D0F11] shadow-md">
                                   <Check className="h-3.5 w-3.5 stroke-[3]" />
                                 </span>
                               </div>
@@ -625,10 +720,12 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                       })}
                     </div>
                   ) : (
-                    <div className="flex h-16 items-center justify-center rounded-lg border border-dashed border-[#2A2F37] bg-[#0D0F11]/40 px-3 text-center text-[11px] text-[#9CA3AF]">
-                      {title.trim().length < 2
-                        ? t.modal.typeToSuggest
-                        : t.modal.noSuggestions}
+                    <div className="flex h-20 flex-col items-center justify-center rounded-lg border border-dashed border-[#2A2F37] bg-[#0D0F11]/40 px-3 text-center text-xs text-[#9CA3AF]">
+                      <p>
+                        {title.trim().length < 2
+                          ? t.modal.typeToSuggest
+                          : t.modal.noSuggestions}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -670,7 +767,10 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                         value={
                           coverImage.startsWith('data:') ? '' : coverImage
                         }
-                        onChange={(e) => setCoverImage(e.target.value)}
+                        onChange={(e) => {
+                          setCoverImage(e.target.value);
+                          isManualCoverRef.current = Boolean(e.target.value.trim());
+                        }}
                         placeholder={t.modal.urlPlaceholder}
                         className="w-full rounded-lg border border-[#2A2F37] bg-[#0D0F11] py-1.5 pr-2.5 pl-8 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/50 focus:border-[#10B981] focus:outline-none"
                       />

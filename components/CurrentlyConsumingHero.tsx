@@ -127,6 +127,7 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
                 <img
                   src={item.coverImage || fallbackCover}
                   alt={item.title}
+                  loading="lazy"
                   onError={(e) => {
                     const target = e.currentTarget;
                     if (target.src !== fallbackCover) {
