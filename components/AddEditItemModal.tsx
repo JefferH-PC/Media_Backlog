@@ -1,19 +1,16 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Gamepad2,
   Film,
   Tv,
   BookOpen,
-  RefreshCw,
   Upload,
   Link as LinkIcon,
-  Check,
-  Loader2,
-  Sparkles,
   Trash2,
+  Image as ImageIcon,
 } from 'lucide-react';
 import {
   ItemStatus,
@@ -68,22 +65,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   const [author, setAuthor] = useState('');
   const [publisher, setPublisher] = useState('');
 
-  // Image suggestions pool and loading/error states
-  const [rawSuggestions, setRawSuggestions] = useState<string[]>([]);
-  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
-  const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [compressing, setCompressing] = useState(false);
-
-  // Active suggestions: up to 3 valid, non-failed images
-  const displayedSuggestions = rawSuggestions
-    .filter((url) => !failedImages.has(url))
-    .slice(0, 3);
-
-  // Track if user explicitly supplied custom image (upload or typed URL)
-  const isManualCoverRef = useRef(false);
-  // Request tracking to prevent out-of-order race conditions
-  const activeReqIdRef = useRef(0);
 
   // Initialize form when modal opens or editingItem changes
   useEffect(() => {
@@ -96,7 +78,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle(editingItem.title);
       setYear(String(editingItem.year));
       setCoverImage(editingItem.coverImage || '');
-      isManualCoverRef.current = Boolean(editingItem.coverImage);
 
       if (editingItem.type === 'games') {
         setDeveloper(editingItem.developer);
@@ -118,7 +99,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle('');
       setYear(String(new Date().getFullYear()));
       setCoverImage('');
-      isManualCoverRef.current = false;
       setDeveloper('');
       setAchievements('0');
       setPriceBRL('0.00');
@@ -126,111 +106,8 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setSeasons('1');
       setAuthor('');
       setPublisher('');
-      setRawSuggestions([]);
-      setFailedImages(new Set());
-      setLoadedImages(new Set());
     }
   }, [isOpen, editingItem, initialCategory]);
-
-  const fetchPosterSuggestions = useCallback(
-    async (searchTitle: string, mediaType: MediaType, forceAutoSelect = false) => {
-      const trimmed = searchTitle.trim();
-      if (trimmed.length < 2) {
-        setRawSuggestions([]);
-        setFailedImages(new Set());
-        setLoadedImages(new Set());
-        return;
-      }
-
-      const reqId = ++activeReqIdRef.current;
-      setLoadingSuggestions(true);
-
-      try {
-        const res = await fetch(
-          `/api/suggest-images?q=${encodeURIComponent(trimmed)}&type=${encodeURIComponent(mediaType)}`
-        );
-
-        if (reqId !== activeReqIdRef.current) return;
-
-        if (res.ok) {
-          const data = await res.json();
-          const imgs: string[] = Array.isArray(data.images) ? data.images : [];
-          setRawSuggestions(imgs);
-          setFailedImages(new Set());
-          setLoadedImages(new Set());
-
-          // Auto-select the top suggested image if user hasn't manually customized it
-          if (imgs.length > 0 && (!isManualCoverRef.current || forceAutoSelect)) {
-            setCoverImage(imgs[0]);
-          }
-        } else {
-          setRawSuggestions([]);
-          setFailedImages(new Set());
-          setLoadedImages(new Set());
-        }
-      } catch {
-        if (reqId === activeReqIdRef.current) {
-          setRawSuggestions([]);
-          setFailedImages(new Set());
-          setLoadedImages(new Set());
-        }
-      } finally {
-        if (reqId === activeReqIdRef.current) {
-          setLoadingSuggestions(false);
-        }
-      }
-    },
-    []
-  );
-
-  // Debounced auto-suggest as title changes
-  useEffect(() => {
-    if (!isOpen) return;
-    const trimmed = title.trim();
-    if (trimmed.length < 2) {
-      setRawSuggestions([]);
-      setFailedImages(new Set());
-      setLoadedImages(new Set());
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      fetchPosterSuggestions(trimmed, type);
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [title, type, isOpen, fetchPosterSuggestions]);
-
-  // Handle broken/failing image URL: remove it immediately so no empty card is exhibited
-  const handleImageError = useCallback(
-    (failedUrl: string) => {
-      setFailedImages((prev) => {
-        const next = new Set(prev);
-        next.add(failedUrl);
-        return next;
-      });
-
-      // If the currently selected cover was this failed image, auto-switch to next valid candidate
-      setCoverImage((current) => {
-        if (current === failedUrl) {
-          const remaining = rawSuggestions.filter(
-            (url) => url !== failedUrl && !failedImages.has(url)
-          );
-          return remaining.length > 0 ? remaining[0] : '';
-        }
-        return current;
-      });
-    },
-    [rawSuggestions, failedImages]
-  );
-
-  const handleImageLoad = useCallback((loadedUrl: string) => {
-    setLoadedImages((prev) => {
-      const next = new Set(prev);
-      next.add(loadedUrl);
-      return next;
-    });
-  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -252,7 +129,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     try {
       const webpBase64 = await compressImage(file, 300, 450, 0.75);
       setCoverImage(webpBase64);
-      isManualCoverRef.current = true;
     } catch (err) {
       console.error('Image compression failed:', err);
     } finally {
@@ -392,12 +268,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                       setType(newType);
                       if (newType === 'movies') {
                         setIsCurrentlyConsuming(false);
-                      }
-                      if (!isManualCoverRef.current) {
-                        setCoverImage('');
-                      }
-                      if (title.trim().length >= 2) {
-                        fetchPosterSuggestions(title, newType, true);
                       }
                     }}
                     className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all ${
@@ -623,21 +493,18 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             )}
           </div>
 
-          {/* Poster Cover Section: 3 Auto-Suggestions + Live Preview + Upload + URL */}
+          {/* Poster Cover Section: Live Preview + Upload File + Direct URL */}
           <div className="rounded-xl border border-[#2A2F37] bg-[#16191D] p-4">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-[#10B981]" />
+                <ImageIcon className="h-4 w-4 text-[#10B981]" />
                 <span className="text-xs font-semibold text-[#F3F4F6]">
                   {t.modal.coverSection}
                 </span>
                 {coverImage && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setCoverImage('');
-                      isManualCoverRef.current = false;
-                    }}
+                    onClick={() => setCoverImage('')}
                     title="Reset to default SVG"
                     className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-[#9CA3AF] transition-colors hover:bg-[#2A2F37] hover:text-[#EF4444]"
                   >
@@ -646,201 +513,84 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                   </button>
                 )}
               </div>
-
-              <button
-                type="button"
-                disabled={title.trim().length < 2 || loadingSuggestions}
-                onClick={() => fetchPosterSuggestions(title, type, true)}
-                className="inline-flex items-center gap-1.5 rounded-md border border-[#2A2F37] bg-[#1F2329] px-2.5 py-1 text-[11px] font-medium text-[#9CA3AF] transition-colors hover:border-[#3B424D] hover:text-[#F3F4F6] disabled:opacity-40"
-              >
-                <RefreshCw
-                  className={`h-3 w-3 ${loadingSuggestions ? 'animate-spin text-[#10B981]' : ''}`}
-                />
-                <span>{t.modal.refreshSuggestions}</span>
-              </button>
             </div>
 
-            <div className="flex flex-col gap-4 sm:flex-row">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
               {/* Live 2:3 Poster Preview */}
               <div className="mx-auto flex flex-col items-center sm:mx-0">
                 <div className="relative h-[160px] w-[107px] shrink-0 overflow-hidden rounded-xl border border-[#2A2F37] bg-[#0D0F11] shadow-lg">
-                  {loadingSuggestions && !coverImage ? (
-                    <div className="relative flex h-full w-full animate-pulse flex-col items-center justify-center bg-[#1F2329]">
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#0D0F11] via-transparent to-transparent" />
-                      <Loader2 className="h-6 w-6 animate-spin text-[#10B981]" />
-                      <span className="mt-2 text-[10px] font-medium text-[#9CA3AF]">
-                        {locale === 'pt-BR' ? 'Buscando...' : 'Searching...'}
-                      </span>
-                    </div>
-                  ) : (
-                    <img
-                      src={previewCover}
-                      alt="Cover preview"
-                      onError={(e) => {
-                        if (coverImage) {
-                          handleImageError(coverImage);
-                        } else {
-                          const fallback = createPosterSvgDataUrl(
-                            title || 'Poster',
-                            year,
-                            type
-                          );
-                          if (e.currentTarget.src !== fallback) {
-                            e.currentTarget.src = fallback;
-                          }
-                        }
-                      }}
-                      className="h-full w-full object-cover transition-opacity duration-300"
-                    />
-                  )}
+                  <img
+                    src={previewCover}
+                    alt="Cover preview"
+                    onError={(e) => {
+                      const fallback = createPosterSvgDataUrl(
+                        title || 'Poster',
+                        year,
+                        type
+                      );
+                      if (e.currentTarget.src !== fallback) {
+                        e.currentTarget.src = fallback;
+                      }
+                    }}
+                    className="h-full w-full object-cover transition-opacity duration-300"
+                  />
                 </div>
                 <span className="mt-1.5 text-[10px] font-medium text-[#9CA3AF]">
                   {locale === 'pt-BR' ? 'Pré-visualização' : 'Live Preview'}
                 </span>
               </div>
 
-              {/* Right Column: 3 Auto-Suggestions + Upload + Direct URL */}
-              <div className="min-w-0 flex-1 space-y-3">
+              {/* Right Column: Upload Local File & Direct URL */}
+              <div className="min-w-0 flex-1 space-y-4">
                 <div>
-                  <div className="mb-2 flex items-center justify-between">
-                    <p className="text-[11px] font-medium text-[#9CA3AF]">
-                      {t.modal.suggestCovers}
-                    </p>
-                    {loadingSuggestions && (
-                      <span className="flex items-center gap-1.5 text-[10px] text-[#10B981]">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        <span>{t.modal.fetchingSuggestions}</span>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Exactly 3 Suggestions Grid or 3 Skeletons */}
-                  {loadingSuggestions ? (
-                    <div className="grid grid-cols-3 gap-3">
-                      {[0, 1, 2].map((i) => (
-                        <div
-                          key={`sugg-skeleton-${i}`}
-                          className="relative aspect-[2/3] overflow-hidden rounded-xl border border-[#2A2F37] bg-[#16191D] animate-pulse shadow-sm"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-b from-[#2A2F37]/30 via-transparent to-[#0D0F11]/80" />
-                          <div className="absolute top-2 left-2 h-4 w-4 rounded bg-[#2A2F37]/60" />
-                          <div className="absolute bottom-2.5 left-2 right-2 h-2 rounded bg-[#2A2F37]/70" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : displayedSuggestions.length > 0 ? (
-                    <div className="grid grid-cols-3 gap-3">
-                      {displayedSuggestions.map((imgUrl, idx) => {
-                        const isSelected = coverImage === imgUrl;
-                        const isLoaded = loadedImages.has(imgUrl);
-
-                        return (
-                          <button
-                            key={`${imgUrl}-${idx}`}
-                            type="button"
-                            onClick={() => {
-                              setCoverImage(imgUrl);
-                              isManualCoverRef.current = false;
-                            }}
-                            title={`Option ${idx + 1}`}
-                            className={`group relative aspect-[2/3] overflow-hidden rounded-xl border transition-all duration-200 ${
-                              isSelected
-                                ? 'border-2 border-[#10B981] ring-2 ring-[#10B981]/25 shadow-xl shadow-[#10B981]/20 scale-[1.02]'
-                                : 'border-[#2A2F37] bg-[#0D0F11] hover:border-[#6EE7B7]/70 hover:scale-[1.03]'
-                            }`}
-                          >
-                            {/* Subtle shimmer until image bit renders */}
-                            {!isLoaded && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-[#16191D] animate-pulse">
-                                <div className="h-4 w-4 rounded-full border-2 border-[#2A2F37] border-t-[#10B981] animate-spin" />
-                              </div>
-                            )}
-
-                            <img
-                              src={imgUrl}
-                              alt={`Suggestion ${idx + 1}`}
-                              onLoad={() => handleImageLoad(imgUrl)}
-                              onError={() => handleImageError(imgUrl)}
-                              className={`h-full w-full object-cover transition-opacity duration-300 ${
-                                isLoaded ? 'opacity-100' : 'opacity-0'
-                              }`}
-                            />
-
-                            {/* Option Index Badge */}
-                            <div className="absolute top-1.5 left-1.5 flex h-4 w-4 items-center justify-center rounded-sm bg-[#0D0F11]/80 text-[10px] font-bold text-[#F3F4F6] backdrop-blur-xs">
-                              {idx + 1}
-                            </div>
-
-                            {/* Selected Checkmark Overlay */}
-                            {isSelected && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-[#0D0F11]/40 backdrop-blur-[0.5px]">
-                                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#10B981] text-[#0D0F11] shadow-md">
-                                  <Check className="h-4 w-4 stroke-[3]" />
-                                </span>
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="flex h-24 flex-col items-center justify-center rounded-lg border border-dashed border-[#2A2F37] bg-[#0D0F11]/40 px-3 text-center text-xs text-[#9CA3AF]">
-                      <p>
-                        {title.trim().length < 2
-                          ? t.modal.typeToSuggest
-                          : t.modal.noSuggestions}
-                      </p>
-                    </div>
-                  )}
+                  <label className="mb-1.5 block text-xs font-medium text-[#9CA3AF]">
+                    {t.modal.uploadFile}
+                  </label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    disabled={compressing}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#2A2F37] bg-[#1F2329] px-4 py-2.5 text-xs font-medium text-[#F3F4F6] transition-colors hover:border-[#3B424D] hover:bg-[#252A32]"
+                  >
+                    <Upload className="h-4 w-4 text-[#10B981]" />
+                    <span>
+                      {compressing
+                        ? locale === 'pt-BR'
+                          ? 'Comprimindo...'
+                          : 'Compressing...'
+                        : t.modal.chooseFile}
+                    </span>
+                  </button>
                 </div>
 
-                {/* Upload Local File & Direct URL */}
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-[11px] font-medium text-[#9CA3AF]">
-                      {t.modal.uploadFile}
-                    </label>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-[#9CA3AF]">
+                    {t.modal.pasteUrl}
+                  </label>
+                  <div className="relative">
+                    <LinkIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
                     <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload}
-                      className="hidden"
+                      type="text"
+                      value={coverImage.startsWith('data:') ? '' : coverImage}
+                      onChange={(e) => setCoverImage(e.target.value)}
+                      placeholder={t.modal.urlPlaceholder}
+                      className="w-full rounded-lg border border-[#2A2F37] bg-[#0D0F11] py-2 pr-3 pl-9 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/50 focus:border-[#10B981] focus:outline-none"
                     />
-                    <button
-                      type="button"
-                      disabled={compressing}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#2A2F37] bg-[#1F2329] px-3 py-1.5 text-xs font-medium text-[#F3F4F6] transition-colors hover:border-[#3B424D]"
-                    >
-                      <Upload className="h-3.5 w-3.5 text-[#10B981]" />
-                      <span>
-                        {compressing ? '...' : t.modal.chooseFile}
-                      </span>
-                    </button>
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-[11px] font-medium text-[#9CA3AF]">
-                      {t.modal.pasteUrl}
-                    </label>
-                    <div className="relative">
-                      <LinkIcon className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#9CA3AF]" />
-                      <input
-                        type="text"
-                        value={
-                          coverImage.startsWith('data:') ? '' : coverImage
-                        }
-                        onChange={(e) => {
-                          setCoverImage(e.target.value);
-                          isManualCoverRef.current = Boolean(e.target.value.trim());
-                        }}
-                        placeholder={t.modal.urlPlaceholder}
-                        className="w-full rounded-lg border border-[#2A2F37] bg-[#0D0F11] py-1.5 pr-2.5 pl-8 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/50 focus:border-[#10B981] focus:outline-none"
-                      />
-                    </div>
                   </div>
                 </div>
+
+                <p className="text-[11px] leading-relaxed text-[#9CA3AF]/80">
+                  {locale === 'pt-BR'
+                    ? 'Envie uma imagem do seu dispositivo ou cole um link direto. Se não definir uma capa, um pôster geométrico personalizado será gerado automaticamente.'
+                    : 'Upload an image from your device or paste a direct image URL. If omitted, a custom geometric title poster will be generated automatically.'}
+                </p>
               </div>
             </div>
           </div>
