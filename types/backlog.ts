@@ -9,6 +9,10 @@ export interface BaseMediaItem {
   year: number | string; // Numeric year (e.g. 2023) or year range for series (e.g. "2008-2013")
   status: ItemStatus; // 'backlog' (to consume) or 'consumed' (already finished)
   isCurrentlyConsuming: boolean; // Relevant for Games, Books, and Series
+  completedAt?: string; // ISO 8601 string or date when finished
+  rating?: number; // 1-5 star rating
+  notes?: string; // Personal notes, thoughts, quotes, mini-review
+  platform?: string; // e.g. Steam, PS5, Switch, Netflix, Kindle, Physical, etc.
   createdAt: string; // ISO 8601 string
   updatedAt: string; // ISO 8601 string
 }

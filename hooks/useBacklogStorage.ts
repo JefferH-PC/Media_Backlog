@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AppDatabase,
   MediaItem,
@@ -12,6 +12,7 @@ import {
 } from '@/types/backlog';
 import { validateBackupJSON, mergeDatabases, exportDatabaseJSON } from '@/utils/backup';
 import { getDemoDatabase } from '@/utils/demoData';
+import { idbGet, idbSet } from '@/utils/indexedDB';
 
 export const STORAGE_KEY = 'app_media_backlog_v1';
 
@@ -26,44 +27,88 @@ const DEFAULT_DATABASE: AppDatabase = {
 export function useBacklogStorage() {
   const [db, setDb] = useState<AppDatabase>(DEFAULT_DATABASE);
   const [isHydrated, setIsHydrated] = useState(false);
+  const dbRef = useRef<AppDatabase>(DEFAULT_DATABASE);
 
-  // Load and migrate/validate from localStorage on mount
+  // Keep dbRef in sync with state
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (validateBackupJSON(parsed)) {
-          setDb({
+    dbRef.current = db;
+  }, [db]);
+
+  // Load and migrate from IndexedDB or legacy localStorage on mount
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function initStorage() {
+      try {
+        // 1. Try IndexedDB first
+        const idbData = await idbGet<AppDatabase>(STORAGE_KEY);
+        if (!isCancelled && idbData && validateBackupJSON(idbData)) {
+          const loadedDb: AppDatabase = {
             version: 1,
-            lastBackupDate: parsed.lastBackupDate,
-            games: parsed.games || [],
-            movies: parsed.movies || [],
-            series: parsed.series || [],
-            books: parsed.books || [],
-          });
-        } else {
-          window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_DATABASE));
+            lastBackupDate: idbData.lastBackupDate,
+            games: idbData.games || [],
+            movies: idbData.movies || [],
+            series: idbData.series || [],
+            books: idbData.books || [],
+          };
+          setDb(loadedDb);
+          setIsHydrated(true);
+          return;
         }
-      } else {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_DATABASE));
+
+        // 2. Migration from legacy localStorage if IndexedDB is empty
+        if (typeof window !== 'undefined') {
+          const legacyRaw = window.localStorage.getItem(STORAGE_KEY);
+          if (legacyRaw) {
+            const parsed = JSON.parse(legacyRaw);
+            if (validateBackupJSON(parsed)) {
+              const loadedDb: AppDatabase = {
+                version: 1,
+                lastBackupDate: parsed.lastBackupDate,
+                games: parsed.games || [],
+                movies: parsed.movies || [],
+                series: parsed.series || [],
+                books: parsed.books || [],
+              };
+              if (!isCancelled) {
+                setDb(loadedDb);
+                // Save to IndexedDB for seamless migration
+                await idbSet(STORAGE_KEY, loadedDb);
+              }
+              setIsHydrated(true);
+              return;
+            }
+          }
+        }
+
+        // 3. Fallback default
+        if (!isCancelled) {
+          setDb(DEFAULT_DATABASE);
+          await idbSet(STORAGE_KEY, DEFAULT_DATABASE);
+        }
+      } catch (err) {
+        console.error('Failed to initialize storage:', err);
+      } finally {
+        if (!isCancelled) {
+          setIsHydrated(true);
+        }
       }
-    } catch (err) {
-      console.error('Failed to read localStorage database:', err);
-    } finally {
-      setIsHydrated(true);
     }
+
+    initStorage();
+
+    return () => {
+      isCancelled = true;
+    };
   }, []);
 
-  // Persist to localStorage helper
+  // Persist to IndexedDB helper
   const saveDb = useCallback((updater: (prev: AppDatabase) => AppDatabase) => {
     setDb((prev) => {
       const next = updater(prev);
-      try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      } catch (err) {
-        console.error('Failed to persist to localStorage:', err);
-      }
+      idbSet(STORAGE_KEY, next).catch((err) => {
+        console.error('Failed to persist to IndexedDB:', err);
+      });
       return next;
     });
   }, []);
@@ -80,6 +125,10 @@ export function useBacklogStorage() {
         const normalizedItem: MediaItem = {
           ...item,
           isCurrentlyConsuming: canConsume,
+          completedAt:
+            item.status === 'consumed'
+              ? item.completedAt || now
+              : undefined,
           createdAt: item.createdAt || now,
           updatedAt: now,
         };
@@ -118,10 +167,14 @@ export function useBacklogStorage() {
         const finalItem: MediaItem = {
           ...updatedItem,
           isCurrentlyConsuming: canConsume,
+          completedAt:
+            updatedItem.status === 'consumed'
+              ? updatedItem.completedAt || now
+              : undefined,
           updatedAt: now,
         };
 
-        // Remove from all categories first in case the user switched category during edit
+        // Remove from all categories first in case user switched category
         const cleaned: AppDatabase = {
           ...prev,
           games: prev.games.filter((g) => g.id !== finalItem.id),
@@ -205,6 +258,10 @@ export function useBacklogStorage() {
           return {
             ...item,
             status: nextStatus,
+            completedAt:
+              nextStatus === 'consumed'
+                ? item.completedAt || now
+                : undefined,
             isCurrentlyConsuming:
               nextStatus === 'consumed' ? false : item.isCurrentlyConsuming,
             updatedAt: now,
@@ -228,6 +285,7 @@ export function useBacklogStorage() {
             ? {
                 ...item,
                 status: 'consumed' as const,
+                completedAt: item.completedAt || now,
                 isCurrentlyConsuming: false,
                 updatedAt: now,
               }

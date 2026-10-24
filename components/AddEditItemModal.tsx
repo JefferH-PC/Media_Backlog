@@ -11,6 +11,10 @@ import {
   Link as LinkIcon,
   Trash2,
   Image as ImageIcon,
+  Star,
+  Calendar,
+  Tag,
+  MessageSquare,
 } from 'lucide-react';
 import {
   ItemStatus,
@@ -18,7 +22,7 @@ import {
   MediaItem,
   MediaType,
 } from '@/types/backlog';
-import { translations } from '@/utils/i18n';
+import { translations, PLATFORM_PRESETS } from '@/utils/i18n';
 import { formatBRL, generateId } from '@/utils/format';
 import { compressImage } from '@/utils/imageCompressor';
 import { createPosterSvgDataUrl } from '@/utils/demoData';
@@ -50,6 +54,15 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   const [year, setYear] = useState<string>(String(new Date().getFullYear()));
   const [coverImage, setCoverImage] = useState('');
 
+  // Platform & completion
+  const [platform, setPlatform] = useState('');
+  const [completedDate, setCompletedDate] = useState('');
+
+  // Ratings & Notes
+  const [rating, setRating] = useState<number | undefined>(undefined);
+  const [hoverRating, setHoverRating] = useState<number | undefined>(undefined);
+  const [notes, setNotes] = useState('');
+
   // Game specific
   const [developer, setDeveloper] = useState('');
   const [achievements, setAchievements] = useState<string>('0');
@@ -78,6 +91,14 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle(editingItem.title);
       setYear(String(editingItem.year));
       setCoverImage(editingItem.coverImage || '');
+      setPlatform(editingItem.platform || '');
+      setRating(editingItem.rating);
+      setNotes(editingItem.notes || '');
+      setCompletedDate(
+        editingItem.completedAt
+          ? editingItem.completedAt.split('T')[0]
+          : new Date().toISOString().split('T')[0]
+      );
 
       if (editingItem.type === 'games') {
         setDeveloper(editingItem.developer);
@@ -99,6 +120,10 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle('');
       setYear(String(new Date().getFullYear()));
       setCoverImage('');
+      setPlatform('');
+      setRating(undefined);
+      setNotes('');
+      setCompletedDate(new Date().toISOString().split('T')[0]);
       setDeveloper('');
       setAchievements('0');
       setPriceBRL('0.00');
@@ -163,12 +188,23 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
         type
       );
 
+    const resolvedCompletedAt =
+      status === 'consumed'
+        ? completedDate
+          ? new Date(completedDate + 'T12:00:00.000Z').toISOString()
+          : now
+        : undefined;
+
     const baseFields = {
       id: editingItem ? editingItem.id : generateId(),
       title: cleanTitle,
       year: parsedYear,
       status,
       coverImage: finalCover,
+      platform: platform.trim() || undefined,
+      rating: rating && rating > 0 ? rating : undefined,
+      notes: notes.trim() || undefined,
+      completedAt: resolvedCompletedAt,
       isCurrentlyConsuming:
         type !== 'movies' && status === 'backlog'
           ? isCurrentlyConsuming
@@ -228,6 +264,8 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     { id: 'series', label: t.slotLabels.series, icon: Tv },
     { id: 'books', label: t.slotLabels.books, icon: BookOpen },
   ];
+
+  const presets = PLATFORM_PRESETS[type] || [];
 
   return (
     <div
@@ -321,7 +359,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             </div>
           </div>
 
-          {/* Dynamic Category-Specific Fields (No emojis in labels) */}
+          {/* Dynamic Category-Specific Fields */}
           {type === 'games' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
@@ -446,7 +484,112 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             </div>
           )}
 
-          {/* Status & Currently Consuming */}
+          {/* Platform / Format Tag Options */}
+          <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5">
+            <div className="mb-2 flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+                <Tag className="h-3.5 w-3.5 text-zinc-400" />
+                <span>{t.modal.platform}</span>
+              </label>
+            </div>
+
+            {/* Platform Presets Chips */}
+            <div className="mb-2.5 flex flex-wrap gap-1.5">
+              {presets.map((preset) => {
+                const isSelected = platform === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setPlatform(isSelected ? '' : preset)}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                      isSelected
+                        ? 'border border-white/20 bg-zinc-200 text-zinc-950 font-semibold'
+                        : 'border border-white/[0.08] bg-zinc-800/60 text-zinc-300 hover:border-white/20 hover:text-white'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
+            </div>
+
+            <input
+              type="text"
+              value={platform}
+              onChange={(e) => setPlatform(e.target.value)}
+              placeholder={t.modal.platformPlaceholder}
+              className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
+            />
+          </div>
+
+          {/* Section: 2. Ratings & Personal Notes */}
+          <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-amber-400 fill-amber-400/30" />
+                <span className="text-xs font-semibold text-white">
+                  {t.ratingsAndNotesSection}
+                </span>
+              </div>
+              {rating !== undefined && (
+                <button
+                  type="button"
+                  onClick={() => setRating(undefined)}
+                  className="text-[11px] text-zinc-400 hover:text-rose-400 transition-colors"
+                >
+                  {locale === 'pt-BR' ? 'Limpar nota' : 'Clear rating'}
+                </button>
+              )}
+            </div>
+
+            {/* Interactive 5-Star Rating Picker */}
+            <div className="mb-3.5 flex items-center gap-1.5">
+              {[1, 2, 3, 4, 5].map((starValue) => {
+                const activeVal = hoverRating ?? rating ?? 0;
+                const isFilled = starValue <= activeVal;
+                return (
+                  <button
+                    key={starValue}
+                    type="button"
+                    onClick={() => setRating(rating === starValue ? undefined : starValue)}
+                    onMouseEnter={() => setHoverRating(starValue)}
+                    onMouseLeave={() => setHoverRating(undefined)}
+                    aria-label={`Rate ${starValue} star`}
+                    className="p-1 transition-transform hover:scale-110"
+                  >
+                    <Star
+                      className={`h-5 w-5 transition-colors ${
+                        isFilled
+                          ? 'fill-amber-400 text-amber-400'
+                          : 'text-zinc-600 hover:text-zinc-400'
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+              <span className="ml-2 text-xs text-zinc-400">
+                {rating ? `${rating} / 5` : t.unrated}
+              </span>
+            </div>
+
+            {/* Notes Textarea */}
+            <div>
+              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+                <MessageSquare className="h-3 w-3 text-zinc-400" />
+                <span>{t.modal.notes}</span>
+              </label>
+              <textarea
+                rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={t.modal.notesPlaceholder}
+                className="w-full rounded-xl border border-white/10 bg-zinc-900/60 p-3 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Status & Currently Consuming & Completion Date */}
           <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5 sm:grid-cols-2">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-zinc-400">
@@ -481,18 +624,34 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
               </div>
             </div>
 
-            {type !== 'movies' && status === 'backlog' && (
-              <div className="flex items-center pt-2 sm:pt-5">
-                <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs font-medium text-zinc-200">
-                  <input
-                    type="checkbox"
-                    checked={isCurrentlyConsuming}
-                    onChange={(e) => setIsCurrentlyConsuming(e.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-zinc-900 accent-emerald-500"
-                  />
-                  <span>{t.modal.setCurrentlyConsuming}</span>
+            {/* Conditional Right Field: In Progress check for Backlog, or Date Completed for Consumed */}
+            {status === 'consumed' ? (
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+                  <Calendar className="h-3 w-3 text-zinc-400" />
+                  <span>{t.modal.completedDate}</span>
                 </label>
+                <input
+                  type="date"
+                  value={completedDate}
+                  onChange={(e) => setCompletedDate(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-1.5 text-xs text-white focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
+                />
               </div>
+            ) : (
+              type !== 'movies' && (
+                <div className="flex items-center pt-2 sm:pt-5">
+                  <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs font-medium text-zinc-200">
+                    <input
+                      type="checkbox"
+                      checked={isCurrentlyConsuming}
+                      onChange={(e) => setIsCurrentlyConsuming(e.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-zinc-900 accent-emerald-500"
+                    />
+                    <span>{t.modal.setCurrentlyConsuming}</span>
+                  </label>
+                </div>
+              )
             )}
           </div>
 

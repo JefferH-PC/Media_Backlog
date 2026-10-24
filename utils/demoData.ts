@@ -96,6 +96,8 @@ export const getDemoDatabase = (): AppDatabase => {
         achievements: 42,
         priceBRL: 229.9,
         status: 'backlog',
+        platform: 'PlayStation 5',
+        notes: 'Currently in the Lands Between. Exploring Leyndell Royal Capital next.',
         isCurrentlyConsuming: true,
         coverImage: createPosterSvgDataUrl(
           'Elden Ring',
@@ -117,6 +119,8 @@ export const getDemoDatabase = (): AppDatabase => {
         achievements: 54,
         priceBRL: 199.99,
         status: 'backlog',
+        platform: 'Steam',
+        notes: 'Planned co-op campaign run.',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           "Baldur's Gate 3",
@@ -138,6 +142,7 @@ export const getDemoDatabase = (): AppDatabase => {
         achievements: 65,
         priceBRL: 149.9,
         status: 'backlog',
+        platform: 'PC',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Cyberpunk 2077',
@@ -159,6 +164,10 @@ export const getDemoDatabase = (): AppDatabase => {
         achievements: 63,
         priceBRL: 46.99,
         status: 'consumed',
+        platform: 'Nintendo Switch',
+        rating: 5,
+        notes: 'A masterclass in level design and atmosphere. Completed 112% run.',
+        completedAt: '2023-11-14T19:00:00.000Z',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Hollow Knight',
@@ -180,6 +189,8 @@ export const getDemoDatabase = (): AppDatabase => {
         duration: '3h 00m',
         year: 2023,
         status: 'backlog',
+        platform: 'Cinema',
+        notes: 'Watch in 4K HDR audio system.',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Oppenheimer',
@@ -199,6 +210,7 @@ export const getDemoDatabase = (): AppDatabase => {
         duration: '2h 32m',
         year: 2023,
         status: 'backlog',
+        platform: 'Prime Video',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Anatomy of a Fall',
@@ -218,6 +230,10 @@ export const getDemoDatabase = (): AppDatabase => {
         duration: '2h 12m',
         year: 2019,
         status: 'consumed',
+        platform: 'Blu-ray',
+        rating: 5,
+        notes: 'Flawless pacing and social commentary. Bong Joon-ho at his peak.',
+        completedAt: '2022-08-10T21:30:00.000Z',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Parasite',
@@ -239,6 +255,8 @@ export const getDemoDatabase = (): AppDatabase => {
         seasons: 2,
         year: '2022-2025',
         status: 'backlog',
+        platform: 'Apple TV+',
+        notes: 'In progress. Episode 7 next.',
         isCurrentlyConsuming: true,
         coverImage: createPosterSvgDataUrl(
           'Severance',
@@ -258,6 +276,7 @@ export const getDemoDatabase = (): AppDatabase => {
         seasons: 1,
         year: '2024',
         status: 'backlog',
+        platform: 'Disney+',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Shōgun',
@@ -277,6 +296,10 @@ export const getDemoDatabase = (): AppDatabase => {
         seasons: 5,
         year: '2008-2013',
         status: 'consumed',
+        platform: 'Netflix',
+        rating: 5,
+        notes: 'One of the greatest television dramas ever made.',
+        completedAt: '2021-04-18T22:00:00.000Z',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Breaking Bad',
@@ -300,6 +323,8 @@ export const getDemoDatabase = (): AppDatabase => {
         year: 1965,
         priceBRL: 74.9,
         status: 'backlog',
+        platform: 'Physical',
+        notes: 'Reading Book 2: Muad\'Dib. World-building is unmatched.',
         isCurrentlyConsuming: true,
         coverImage: createPosterSvgDataUrl(
           'Dune',
@@ -321,6 +346,7 @@ export const getDemoDatabase = (): AppDatabase => {
         year: 2021,
         priceBRL: 59.9,
         status: 'backlog',
+        platform: 'Kindle',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Project Hail Mary',
@@ -342,6 +368,10 @@ export const getDemoDatabase = (): AppDatabase => {
         year: 1949,
         priceBRL: 44.9,
         status: 'consumed',
+        platform: 'Paperback',
+        rating: 5,
+        notes: 'Chilling and timeless examination of totalitarianism.',
+        completedAt: '2020-05-12T15:00:00.000Z',
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           '1984',

@@ -1,5 +1,12 @@
 import { Locale, MediaType } from '@/types/backlog';
 
+export const PLATFORM_PRESETS: Record<MediaType, string[]> = {
+  games: ['Steam', 'PlayStation 5', 'Nintendo Switch', 'Xbox', 'PC', 'GOG'],
+  movies: ['Cinema', 'Netflix', 'Prime Video', 'Apple TV', 'Blu-ray', 'Max'],
+  series: ['Netflix', 'Apple TV+', 'Max', 'Prime Video', 'Disney+'],
+  books: ['Kindle', 'Physical', 'Paperback', 'Hardcover', 'Audiobook'],
+};
+
 export const translations = {
   en: {
     appTitle: 'Backlog',
@@ -68,6 +75,16 @@ export const translations = {
       count === 1 ? '1 Season' : `${count} Seasons`,
     achievementsUnit: (count: number) =>
       count === 1 ? '1 Achievement' : `${count} Achievements`,
+    rating: 'Rating',
+    unrated: 'Unrated',
+    notes: 'Personal Notes & Review',
+    hasNotes: 'Notes',
+    platform: 'Platform / Format',
+    allPlatforms: 'All Platforms',
+    filterByPlatform: 'Filter by platform',
+    completedAt: 'Completed Date',
+    finishedOn: (date: string) => `Finished ${date}`,
+    ratingsAndNotesSection: 'Ratings & Personal Notes',
     modal: {
       addTitle: 'Add to Library',
       editTitle: 'Edit Item',
@@ -93,6 +110,13 @@ export const translations = {
       authorPlaceholder: 'e.g. Frank Herbert',
       publisher: 'Publisher',
       publisherPlaceholder: 'e.g. Penguin, Aleph',
+      platform: 'Platform / Format',
+      platformPlaceholder: 'e.g. Steam, Kindle, PS5, Netflix...',
+      rating: 'Rating (1 to 5 Stars)',
+      ratingHint: 'Click to rate or clear',
+      notes: 'Personal Review / Notes',
+      notesPlaceholder: 'Write your thoughts, favorite quotes, or review...',
+      completedDate: 'Date Completed',
       coverSection: 'Cover Artwork (2:3)',
       uploadFile: 'Upload Image',
       chooseFile: 'Choose image file',
@@ -204,6 +228,16 @@ export const translations = {
       count === 1 ? '1 Temporada' : `${count} Temporadas`,
     achievementsUnit: (count: number) =>
       count === 1 ? '1 Conquista' : `${count} Conquistas`,
+    rating: 'Avaliação',
+    unrated: 'Sem avaliação',
+    notes: 'Notas Pessoais e Resenha',
+    hasNotes: 'Notas',
+    platform: 'Plataforma / Formato',
+    allPlatforms: 'Todas as Plataformas',
+    filterByPlatform: 'Filtrar por plataforma',
+    completedAt: 'Data de Conclusão',
+    finishedOn: (date: string) => `Concluído em ${date}`,
+    ratingsAndNotesSection: '2. Avaliação e Notas Pessoais',
     modal: {
       addTitle: 'Adicionar à Estante',
       editTitle: 'Editar Item',
@@ -229,6 +263,13 @@ export const translations = {
       authorPlaceholder: 'ex: Frank Herbert',
       publisher: 'Editora',
       publisherPlaceholder: 'ex: Aleph, Companhia das Letras',
+      platform: 'Plataforma / Formato',
+      platformPlaceholder: 'ex: Steam, Kindle, PS5, Netflix...',
+      rating: 'Avaliação (1 a 5 Estrelas)',
+      ratingHint: 'Clique para avaliar ou limpar',
+      notes: 'Resenha / Notas Pessoais',
+      notesPlaceholder: 'Escreva suas impressões, citações favoritas ou resenha...',
+      completedDate: 'Data de Conclusão',
       coverSection: 'Capa / Pôster (2:3)',
       uploadFile: 'Enviar Imagem',
       chooseFile: 'Escolher arquivo',

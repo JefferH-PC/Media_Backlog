@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { Upload, Download, Plus, Bookmark, Globe } from 'lucide-react';
+import { Upload, Download, Plus, Globe } from 'lucide-react';
 import { Locale } from '@/types/backlog';
 import { translations } from '@/utils/i18n';
+import { Logo } from './Logo';
 
 interface HeaderProps {
   locale: Locale;
@@ -45,9 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6 lg:px-8">
         {/* Brand / Logo */}
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-[#121215] text-zinc-100">
-            <Bookmark className="h-4 w-4 fill-current" />
-          </div>
+          <Logo size={32} />
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-semibold tracking-tight text-white">

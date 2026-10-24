@@ -1,17 +1,16 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Gamepad2,
   Film,
   Tv,
   BookOpen,
   Search,
-  ChevronLeft,
-  ChevronRight,
   Plus,
   Sparkles,
   X,
+  Tag,
 } from 'lucide-react';
 import {
   AppDatabase,
@@ -65,7 +64,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
   onAddItemForCurrentCategory,
   onLoadDemoData,
 }) => {
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('');
   const t = translations[locale];
 
   const isDatabaseCompletelyEmpty =
@@ -75,11 +74,26 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
     db.books.length === 0;
 
   const categoryItems: MediaItem[] = db[activeCategory] || [];
-  const filteredItems = categoryItems.filter(
-    (item) =>
-      item.status === activeStatus &&
-      item.title.toLowerCase().includes(searchQuery.trim().toLowerCase())
-  );
+
+  // Extract unique platforms for the active category
+  const availablePlatforms = Array.from(
+    new Set(
+      categoryItems
+        .filter((item) => item.status === activeStatus && item.platform)
+        .map((item) => item.platform as string)
+    )
+  ).sort();
+
+  const filteredItems = categoryItems.filter((item) => {
+    const matchesStatus = item.status === activeStatus;
+    const matchesSearch = item.title
+      .toLowerCase()
+      .includes(searchQuery.trim().toLowerCase());
+    const matchesPlatform = selectedPlatform
+      ? item.platform === selectedPlatform
+      : true;
+    return matchesStatus && matchesSearch && matchesPlatform;
+  });
 
   const currentCategoryLabel = getCategoryDisplayName(
     locale,
@@ -87,20 +101,11 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
     activeStatus
   );
 
-  const scrollHorizontal = (direction: 'left' | 'right') => {
-    if (!scrollContainerRef.current) return;
-    const distance = 440;
-    scrollContainerRef.current.scrollBy({
-      left: direction === 'left' ? -distance : distance,
-      behavior: 'smooth',
-    });
-  };
-
   return (
     <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      {/* Category Pills & Status Segmented Controller */}
+      {/* Category Pill Tabs & Status Toggle */}
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        {/* Category Pill Tabs */}
+        {/* Category Pills */}
         <div
           role="tablist"
           aria-label="Media categories"
@@ -124,7 +129,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                 role="tab"
                 aria-selected={isSelected}
                 type="button"
-                onClick={() => onSelectCategory(cat)}
+                onClick={() => {
+                  onSelectCategory(cat);
+                  setSelectedPlatform('');
+                }}
                 className={`inline-flex items-center justify-between gap-2.5 rounded-xl px-3.5 py-2 text-xs font-medium transition-all sm:justify-start ${
                   isSelected
                     ? 'border border-white/20 bg-zinc-100 text-zinc-950 shadow-xs'
@@ -149,11 +157,14 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
           })}
         </div>
 
-        {/* Segmented Status Toggle (Backlog | Completed) */}
+        {/* Status Toggle (Backlog | Completed) */}
         <div className="inline-flex self-start rounded-xl border border-white/[0.08] bg-[#121215] p-1 sm:self-auto">
           <button
             type="button"
-            onClick={() => onToggleViewStatus('backlog')}
+            onClick={() => {
+              onToggleViewStatus('backlog');
+              setSelectedPlatform('');
+            }}
             className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeStatus === 'backlog'
                 ? 'bg-zinc-800 text-zinc-100 shadow-xs'
@@ -164,7 +175,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
           </button>
           <button
             type="button"
-            onClick={() => onToggleViewStatus('consumed')}
+            onClick={() => {
+              onToggleViewStatus('consumed');
+              setSelectedPlatform('');
+            }}
             className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeStatus === 'consumed'
                 ? 'bg-zinc-800 text-zinc-100 shadow-xs'
@@ -176,8 +190,8 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
         </div>
       </div>
 
-      {/* Filter / Search Bar */}
-      <div className="mb-5 flex items-center">
+      {/* Filter Row: Search Input & Platform Chips */}
+      <div className="mb-6 space-y-3">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
@@ -198,47 +212,62 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             </button>
           )}
         </div>
+
+        {/* Platform / Format Tag Filter Chips */}
+        {availablePlatforms.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 mr-1">
+              <Tag className="h-3 w-3" />
+              <span>{t.platform}:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedPlatform('')}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                selectedPlatform === ''
+                  ? 'border border-white/20 bg-zinc-200 text-zinc-950 font-semibold'
+                  : 'border border-white/[0.08] bg-[#121215] text-zinc-400 hover:text-white'
+              }`}
+            >
+              {t.allPlatforms}
+            </button>
+            {availablePlatforms.map((plat) => {
+              const isPlatActive = selectedPlatform === plat;
+              return (
+                <button
+                  key={plat}
+                  type="button"
+                  onClick={() =>
+                    setSelectedPlatform(isPlatActive ? '' : plat)
+                  }
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                    isPlatActive
+                      ? 'border border-white/20 bg-zinc-200 text-zinc-950 font-semibold'
+                      : 'border border-white/[0.08] bg-[#121215] text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {plat}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Media Items Track */}
+      {/* Dense Grid View */}
       {filteredItems.length > 0 ? (
-        <div className="group/track relative">
-          {/* Scroll Left Arrow */}
-          <button
-            type="button"
-            onClick={() => scrollHorizontal('left')}
-            aria-label="Scroll left"
-            className="absolute top-1/2 -left-3.5 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-zinc-900/90 text-zinc-200 opacity-0 shadow-lg backdrop-blur-md transition-all group-hover/track:opacity-100 hover:border-white/25 hover:bg-zinc-800 hover:text-white sm:flex"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-
-          <div
-            ref={scrollContainerRef}
-            className="minimal-scrollbar flex items-stretch gap-4 overflow-x-auto pt-1 pb-4"
-          >
-            {filteredItems.map((item) => (
-              <MediaCard
-                key={item.id}
-                item={item}
-                locale={locale}
-                onToggleStatus={onToggleItemStatus}
-                onConsumeNow={onConsumeNow}
-                onEdit={onEditItem}
-                onDelete={onDeleteItem}
-              />
-            ))}
-          </div>
-
-          {/* Scroll Right Arrow */}
-          <button
-            type="button"
-            onClick={() => scrollHorizontal('right')}
-            aria-label="Scroll right"
-            className="absolute top-1/2 -right-3.5 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-zinc-900/90 text-zinc-200 opacity-0 shadow-lg backdrop-blur-md transition-all group-hover/track:opacity-100 hover:border-white/25 hover:bg-zinc-800 hover:text-white sm:flex"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          {filteredItems.map((item) => (
+            <MediaCard
+              key={item.id}
+              item={item}
+              locale={locale}
+              onToggleStatus={onToggleItemStatus}
+              onConsumeNow={onConsumeNow}
+              onEdit={onEditItem}
+              onDelete={onDeleteItem}
+            />
+          ))}
         </div>
       ) : (
         /* Empty State */
@@ -250,10 +279,13 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             {t.emptyCategorySub}
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-            {searchQuery ? (
+            {searchQuery || selectedPlatform ? (
               <button
                 type="button"
-                onClick={() => onSearchChange('')}
+                onClick={() => {
+                  onSearchChange('');
+                  setSelectedPlatform('');
+                }}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-zinc-800 px-3.5 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-700 hover:text-white"
               >
                 <X className="h-3.5 w-3.5" />
