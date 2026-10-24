@@ -3,8 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   MoreVertical,
-  CheckCircle2,
-  PlayCircle,
+  Check,
+  Play,
   BookOpen,
   Edit3,
   Trash2,
@@ -51,52 +51,48 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   const fallbackCover = createPosterSvgDataUrl(
     item.title,
     String(item.year),
-    item.type.toUpperCase()
+    item.type
   );
 
   const renderMetadata = () => {
     switch (item.type) {
       case 'games':
         return (
-          <div className="space-y-0.5 text-[11px] leading-snug text-[#9CA3AF]">
-            <p className="line-clamp-1 font-medium text-[#D1D5DB]">
-              {item.developer} • {item.year}
+          <div className="space-y-0.5 text-[11px] leading-tight text-zinc-400">
+            <p className="truncate">
+              {item.developer} · {item.year}
             </p>
-            <p className="line-clamp-1">
-              🏆 {item.achievements} •{' '}
-              <span className="font-semibold text-[#6EE7B7]">
-                {formatBRL(item.priceBRL)}
-              </span>
+            <p className="truncate text-zinc-500">
+              {t.achievementsUnit(item.achievements)} ·{' '}
+              <span className="text-zinc-300">{formatBRL(item.priceBRL)}</span>
             </p>
           </div>
         );
       case 'movies':
         return (
-          <div className="text-[11px] leading-snug text-[#9CA3AF]">
-            <p className="line-clamp-1 font-medium text-[#D1D5DB]">
-              ⏱ {item.duration} • {item.year}
+          <div className="text-[11px] leading-tight text-zinc-400">
+            <p className="truncate">
+              {item.duration} · {item.year}
             </p>
           </div>
         );
       case 'series':
         return (
-          <div className="text-[11px] leading-snug text-[#9CA3AF]">
-            <p className="line-clamp-1 font-medium text-[#D1D5DB]">
-              📺 {t.seasonsUnit(item.seasons)} • {item.year}
+          <div className="text-[11px] leading-tight text-zinc-400">
+            <p className="truncate">
+              {t.seasonsUnit(item.seasons)} · {item.year}
             </p>
           </div>
         );
       case 'books':
         return (
-          <div className="space-y-0.5 text-[11px] leading-snug text-[#9CA3AF]">
-            <p className="line-clamp-1 font-medium text-[#D1D5DB]">
-              {item.author} • {item.publisher}
+          <div className="space-y-0.5 text-[11px] leading-tight text-zinc-400">
+            <p className="truncate">
+              {item.author} · {item.publisher}
             </p>
-            <p className="line-clamp-1">
-              {item.year ? `${item.year} • ` : ''}
-              <span className="font-semibold text-[#6EE7B7]">
-                {formatBRL(item.priceBRL)}
-              </span>
+            <p className="truncate text-zinc-500">
+              {item.year ? `${item.year} · ` : ''}
+              <span className="text-zinc-300">{formatBRL(item.priceBRL)}</span>
             </p>
           </div>
         );
@@ -112,8 +108,8 @@ export const MediaCard: React.FC<MediaCardProps> = ({
       : t.slotLabels[item.type];
 
   return (
-    <article className="group relative h-[312px] w-[208px] shrink-0 select-none overflow-hidden rounded-xl border border-[#2A2F37] bg-[#16191D] transition-colors hover:border-[#3B424D]">
-      {/* Full-bleed 2:3 Cover Image */}
+    <article className="group relative h-[312px] w-[208px] shrink-0 select-none overflow-hidden rounded-xl border border-white/[0.08] bg-[#121215] shadow-sm transition-all duration-200 hover:border-white/20 hover:shadow-md">
+      {/* 2:3 Cover Poster */}
       <img
         src={item.coverImage || fallbackCover}
         alt={item.title}
@@ -127,47 +123,47 @@ export const MediaCard: React.FC<MediaCardProps> = ({
         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
       />
 
-      {/* Top Gradient for top bar legibility */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[#0D0F11]/80 to-transparent" />
+      {/* Top Subtle Vignette */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/75 to-transparent" />
 
-      {/* Bottom Dark Gradient Overlay for Typography Legibility */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#0D0F11] via-[#0D0F11]/92 to-transparent" />
+      {/* Bottom Subtle Vignette for Text Contrast */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-[#09090b] via-[#09090b]/85 to-transparent" />
 
-      {/* Top Bar (Overlaid) */}
+      {/* Top Bar (Pills & 3-dot menu) */}
       <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between p-2.5">
         <div className="flex items-center gap-1.5">
-          <span className="rounded-md bg-[#064E3B]/95 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-[#6EE7B7] uppercase">
+          <span className="rounded-md border border-white/10 bg-black/60 px-2 py-0.5 text-[10px] font-semibold tracking-wider text-zinc-300 uppercase backdrop-blur-md">
             {badgeLabel}
           </span>
           {item.isCurrentlyConsuming && (
-            <span className="rounded-md border border-[#10B981]/40 bg-[#0D0F11]/90 px-1.5 py-0.5 text-[10px] font-medium text-[#10B981]">
-              • {t.activeBadge}
+            <span className="rounded-md border border-emerald-500/30 bg-emerald-950/80 px-2 py-0.5 text-[10px] font-medium text-emerald-400 backdrop-blur-md">
+              {t.activeBadge}
             </span>
           )}
         </div>
 
-        {/* Discreet 3-dot menu (⋮) */}
+        {/* 3-dot menu */}
         <div ref={menuRef} className="relative">
           <button
             type="button"
             onClick={() => setMenuOpen((prev) => !prev)}
             aria-label="Item options"
-            className="flex h-7 w-7 items-center justify-center rounded-lg border border-[#2A2F37]/80 bg-[#0D0F11]/85 text-[#F3F4F6] transition-colors hover:border-[#3B424D] hover:bg-[#1F2329]"
+            className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-black/50 text-zinc-300 backdrop-blur-md transition-colors hover:border-white/20 hover:bg-black/75 hover:text-white"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 mt-1.5 w-32 overflow-hidden rounded-lg border border-[#2A2F37] bg-[#1F2329] py-1 shadow-lg">
+            <div className="absolute right-0 mt-1.5 w-32 overflow-hidden rounded-xl border border-white/10 bg-[#18181d] py-1 shadow-xl backdrop-blur-md">
               <button
                 type="button"
                 onClick={() => {
                   setMenuOpen(false);
                   onEdit(item);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#F3F4F6] transition-colors hover:bg-[#2A2F37]"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-zinc-200 transition-colors hover:bg-white/[0.08]"
               >
-                <Edit3 className="h-3.5 w-3.5 text-[#9CA3AF]" />
+                <Edit3 className="h-3.5 w-3.5 text-zinc-400" />
                 <span>{t.edit}</span>
               </button>
               <button
@@ -176,7 +172,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
                   setMenuOpen(false);
                   onDelete(item);
                 }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#EF4444] transition-colors hover:bg-[#2A2F37]"
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-rose-400 transition-colors hover:bg-rose-500/10"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 <span>{t.delete}</span>
@@ -186,10 +182,10 @@ export const MediaCard: React.FC<MediaCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom Metadata & Primary Action Buttons */}
+      {/* Bottom Content & Controls */}
       <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col justify-end p-3">
         <h3
-          className="mb-1 line-clamp-2 text-sm leading-tight font-bold text-[#F3F4F6]"
+          className="mb-1 truncate text-sm font-semibold tracking-tight text-white"
           title={item.title}
         >
           {item.title}
@@ -197,9 +193,9 @@ export const MediaCard: React.FC<MediaCardProps> = ({
 
         <div className="mb-2.5">{renderMetadata()}</div>
 
-        {/* Action Buttons Row */}
+        {/* Action Row */}
         <div className="flex items-center gap-1.5">
-          {/* Mark as Consumed / Move to Backlog */}
+          {/* Mark Consumed / Move to Backlog */}
           <button
             type="button"
             onClick={() => onToggleStatus(item)}
@@ -208,28 +204,28 @@ export const MediaCard: React.FC<MediaCardProps> = ({
                 ? t.markConsumedAction[item.type]
                 : t.moveToBacklogAction
             }
-            className={`inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+            className={`inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-medium backdrop-blur-sm transition-colors ${
               item.status === 'backlog'
-                ? 'bg-[#10B981] text-[#0D0F11] hover:bg-[#059669]'
-                : 'border border-[#2A2F37] bg-[#1F2329] text-[#F3F4F6] hover:border-[#3B424D]'
+                ? 'border border-white/10 bg-zinc-800/85 text-zinc-100 hover:border-white/20 hover:bg-zinc-700/85'
+                : 'border border-white/10 bg-zinc-800/60 text-zinc-300 hover:border-white/20 hover:text-white'
             }`}
           >
             {item.status === 'backlog' ? (
               <>
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 stroke-[2.25]" />
+                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400 stroke-[2.2]" />
                 <span className="truncate">
                   {t.markConsumedAction[item.type]}
                 </span>
               </>
             ) : (
               <>
-                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                <RotateCcw className="h-3.5 w-3.5 shrink-0 text-zinc-400" />
                 <span className="truncate">{t.moveToBacklogAction}</span>
               </>
             )}
           </button>
 
-          {/* Consume Now Button (Games, Series, Books in Backlog) */}
+          {/* Quick Play/Watch/Read Focus Button */}
           {canShowConsumeNow && (
             <button
               type="button"
@@ -239,16 +235,16 @@ export const MediaCard: React.FC<MediaCardProps> = ({
                   ? t.removeFromActive
                   : t.consumeNow[item.type as 'games' | 'series' | 'books']
               }
-              className={`inline-flex h-7 w-8 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+              className={`inline-flex h-7 w-8 shrink-0 items-center justify-center rounded-lg border backdrop-blur-sm transition-colors ${
                 item.isCurrentlyConsuming
-                  ? 'border-[#10B981] bg-[#064E3B] text-[#6EE7B7]'
-                  : 'border-[#2A2F37] bg-[#1F2329] text-[#F3F4F6] hover:border-[#10B981] hover:text-[#10B981]'
+                  ? 'border-emerald-500/40 bg-emerald-950/70 text-emerald-400'
+                  : 'border-white/10 bg-zinc-800/85 text-zinc-300 hover:border-white/20 hover:text-emerald-400'
               }`}
             >
               {item.type === 'books' ? (
                 <BookOpen className="h-3.5 w-3.5" />
               ) : (
-                <PlayCircle className="h-3.5 w-3.5" />
+                <Play className="h-3.5 w-3.5 fill-current" />
               )}
             </button>
           )}

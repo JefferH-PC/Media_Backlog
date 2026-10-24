@@ -5,8 +5,8 @@ import {
   Gamepad2,
   Tv,
   BookOpen,
-  CheckCircle2,
-  XCircle,
+  Check,
+  Pause,
 } from 'lucide-react';
 import {
   GameItem,
@@ -44,8 +44,11 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
       icon: Gamepad2,
       item: activeGame,
       markLabel: t.markConsumedAction.games,
-      meta: activeGame
-        ? `${activeGame.developer} • ${activeGame.year} • 🏆 ${activeGame.achievements} • ${formatBRL(activeGame.priceBRL)}`
+      primaryMeta: activeGame
+        ? `${activeGame.developer} · ${activeGame.year}`
+        : '',
+      secondaryMeta: activeGame
+        ? `${t.achievementsUnit(activeGame.achievements)} · ${formatBRL(activeGame.priceBRL)}`
         : '',
     },
     {
@@ -54,9 +57,10 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
       icon: Tv,
       item: activeSeries,
       markLabel: t.markConsumedAction.series,
-      meta: activeSeries
-        ? `📺 ${t.seasonsUnit(activeSeries.seasons)} • ${activeSeries.year}`
+      primaryMeta: activeSeries
+        ? `${t.seasonsUnit(activeSeries.seasons)} · ${activeSeries.year}`
         : '',
+      secondaryMeta: '',
     },
     {
       type: 'books' as const,
@@ -64,8 +68,11 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
       icon: BookOpen,
       item: activeBook,
       markLabel: t.markConsumedAction.books,
-      meta: activeBook
-        ? `${activeBook.author} • ${activeBook.publisher} • ${formatBRL(activeBook.priceBRL)}`
+      primaryMeta: activeBook
+        ? `${activeBook.author} · ${activeBook.publisher}`
+        : '',
+      secondaryMeta: activeBook
+        ? `${activeBook.year ? `${activeBook.year} · ` : ''}${formatBRL(activeBook.priceBRL)}`
         : '',
     },
   ];
@@ -73,16 +80,15 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
   return (
     <section
       aria-label={t.currentlyConsuming}
-      className="mx-auto max-w-7xl px-4 pt-6 pb-2 sm:px-6 lg:px-8"
+      className="mx-auto max-w-7xl px-4 pt-8 pb-3 sm:px-6 lg:px-8"
     >
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-[#10B981]" />
-          <h2 className="text-xs font-bold tracking-wider text-[#F3F4F6] uppercase">
+      <div className="mb-4 flex items-baseline justify-between">
+        <div className="flex items-baseline gap-2.5">
+          <h2 className="text-sm font-semibold tracking-tight text-zinc-100">
             {t.currentlyConsuming}
           </h2>
-          <span className="hidden text-xs text-[#9CA3AF] sm:inline">
-            — {t.currentlyConsumingSub}
+          <span className="text-xs text-zinc-400">
+            {t.currentlyConsumingSub}
           </span>
         </div>
       </div>
@@ -96,15 +102,15 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
             return (
               <div
                 key={slot.type}
-                className="flex min-h-[148px] flex-col justify-between rounded-xl border border-dashed border-[#2A2F37] bg-[#16191D]/40 p-4"
+                className="flex min-h-[148px] flex-col justify-between rounded-2xl border border-dashed border-white/10 bg-[#121215]/50 p-4 transition-colors hover:border-white/15"
               >
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-md bg-[#1F2329] px-2.5 py-1 text-[11px] font-medium text-[#9CA3AF]">
-                    <Icon className="h-3.5 w-3.5 text-[#10B981]" />
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-zinc-800/50 px-2.5 py-1 text-[11px] font-medium text-zinc-400">
+                    <Icon className="h-3.5 w-3.5 text-zinc-300" />
                     {slot.label}
                   </span>
                 </div>
-                <p className="my-auto py-3 text-xs leading-relaxed text-[#9CA3AF]">
+                <p className="my-auto py-2 text-xs leading-relaxed text-zinc-500">
                   {t.emptySlot(slot.label)}
                 </p>
               </div>
@@ -120,10 +126,10 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
           return (
             <div
               key={slot.type}
-              className="flex min-h-[148px] gap-4 rounded-xl border border-[#2A2F37] bg-[#16191D] p-3.5 transition-colors hover:border-[#3B424D]"
+              className="flex min-h-[148px] gap-4 rounded-2xl border border-white/[0.08] bg-[#121215] p-3.5 transition-all duration-200 hover:border-white/20 hover:shadow-md"
             >
               {/* 2:3 Miniature Poster */}
-              <div className="relative h-[120px] w-[80px] shrink-0 overflow-hidden rounded-lg border border-[#2A2F37] bg-[#0D0F11]">
+              <div className="relative h-[120px] w-[80px] shrink-0 overflow-hidden rounded-lg border border-white/10 bg-black/40">
                 <img
                   src={item.coverImage || fallbackCover}
                   alt={item.title}
@@ -142,17 +148,17 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
               <div className="flex min-w-0 flex-1 flex-col justify-between">
                 <div>
                   <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-md bg-[#064E3B] px-2 py-0.5 text-[11px] font-semibold text-[#6EE7B7]">
-                      <Icon className="h-3 w-3" />
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-zinc-800/80 px-2 py-0.5 text-[11px] font-medium text-zinc-200">
+                      <Icon className="h-3 w-3 text-emerald-400" />
                       {slot.label}
                     </span>
                     <button
                       type="button"
                       onClick={() => onRemoveFromActive(slot.type, item.id)}
                       title={t.removeFromActive}
-                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-[#9CA3AF] transition-colors hover:bg-[#1F2329] hover:text-[#F3F4F6]"
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
                     >
-                      <XCircle className="h-3.5 w-3.5" />
+                      <Pause className="h-3 w-3" />
                       <span className="hidden xl:inline">
                         {t.removeFromActive}
                       </span>
@@ -160,26 +166,34 @@ export const CurrentlyConsumingHero: React.FC<CurrentlyConsumingHeroProps> = ({
                   </div>
 
                   <h3
-                    className="line-clamp-1 text-sm font-semibold text-[#F3F4F6]"
+                    className="truncate text-sm font-semibold tracking-tight text-white"
                     title={item.title}
                   >
                     {item.title}
                   </h3>
                   <p
-                    className="mt-0.5 line-clamp-2 text-xs text-[#9CA3AF]"
-                    title={slot.meta}
+                    className="mt-0.5 truncate text-xs text-zinc-400"
+                    title={slot.primaryMeta}
                   >
-                    {slot.meta}
+                    {slot.primaryMeta}
                   </p>
+                  {slot.secondaryMeta && (
+                    <p
+                      className="truncate text-[11px] text-zinc-500"
+                      title={slot.secondaryMeta}
+                    >
+                      {slot.secondaryMeta}
+                    </p>
+                  )}
                 </div>
 
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-2.5 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => onMarkConsumed(slot.type, item.id)}
-                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[#10B981] px-3 py-1.5 text-xs font-semibold text-[#0D0F11] transition-colors hover:bg-[#059669]"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800/90 px-3 py-1.5 text-xs font-medium text-zinc-100 transition-colors hover:border-white/20 hover:bg-zinc-700/90 hover:text-white"
                   >
-                    <CheckCircle2 className="h-3.5 w-3.5 stroke-[2.25]" />
+                    <Check className="h-3.5 w-3.5 text-emerald-400 stroke-[2.2]" />
                     <span>{slot.markLabel}</span>
                   </button>
                 </div>

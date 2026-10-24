@@ -148,24 +148,27 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     const cleanTitle = title.trim();
     if (!cleanTitle) return;
 
+    const parsedYear =
+      type === 'series'
+        ? year.trim() || '2024'
+        : parseInt(year, 10) || new Date().getFullYear();
+
     const now = new Date().toISOString();
+
     const finalCover =
       coverImage.trim() ||
       createPosterSvgDataUrl(
         cleanTitle,
-        year.trim() || String(new Date().getFullYear()),
-        type.toUpperCase()
+        String(parsedYear),
+        type
       );
 
     const baseFields = {
       id: editingItem ? editingItem.id : generateId(),
       title: cleanTitle,
-      coverImage: finalCover,
-      year:
-        type === 'series'
-          ? year.trim() || String(new Date().getFullYear())
-          : Number(year) || new Date().getFullYear(),
+      year: parsedYear,
       status,
+      coverImage: finalCover,
       isCurrentlyConsuming:
         type !== 'movies' && status === 'backlog'
           ? isCurrentlyConsuming
@@ -216,7 +219,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     createPosterSvgDataUrl(
       title.trim() || 'Preview',
       year.trim() || String(new Date().getFullYear()),
-      type.toUpperCase()
+      type
     );
 
   const categoryButtons: { id: MediaType; label: string; icon: React.ElementType }[] = [
@@ -231,28 +234,28 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D0F11]/80 p-4 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs"
     >
-      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[#2A2F37] bg-[#1F2329] p-6 shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-white/10 bg-[#121215] p-6 shadow-2xl">
         {/* Header */}
-        <div className="mb-5 flex items-center justify-between border-b border-[#2A2F37] pb-4">
-          <h2 id="modal-title" className="text-base font-bold text-[#F3F4F6]">
+        <div className="mb-5 flex items-center justify-between border-b border-white/[0.08] pb-4">
+          <h2 id="modal-title" className="text-base font-semibold text-white">
             {editingItem ? t.modal.editTitle : t.modal.addTitle}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close modal"
-            className="rounded-lg p-1.5 text-[#9CA3AF] transition-colors hover:bg-[#16191D] hover:text-[#F3F4F6]"
+            className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Media Category Selector */}
+          {/* Category Selector */}
           <div>
-            <label className="mb-2 block text-xs font-semibold text-[#9CA3AF]">
+            <label className="mb-2 block text-xs font-medium text-zinc-400">
               {t.modal.mediaType}
             </label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -270,10 +273,10 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                         setIsCurrentlyConsuming(false);
                       }
                     }}
-                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-all ${
+                    className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-all ${
                       active
-                        ? 'border-[#10B981] bg-[#064E3B] text-[#6EE7B7] shadow-sm'
-                        : 'border-[#2A2F37] bg-[#16191D] text-[#9CA3AF] hover:border-[#3B424D] hover:text-[#F3F4F6]'
+                        ? 'border-white/20 bg-zinc-100 text-zinc-950 shadow-xs'
+                        : 'border-white/[0.08] bg-zinc-900/40 text-zinc-400 hover:border-white/15 hover:text-zinc-200'
                     }`}
                   >
                     <Icon className="h-4 w-4" />
@@ -284,10 +287,10 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             </div>
           </div>
 
-          {/* Title & Release Year */}
+          {/* Title and Year Fields */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                 {t.modal.title} *
               </label>
               <input
@@ -296,12 +299,12 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder={t.modal.titlePlaceholder}
-                className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/60 focus:border-[#10B981] focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                 {type === 'series' ? t.modal.yearSeries : t.modal.year}
               </label>
               <input
@@ -313,16 +316,16 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                     ? t.modal.yearSeriesPlaceholder
                     : t.modal.yearPlaceholder
                 }
-                className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/60 focus:border-[#10B981] focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
               />
             </div>
           </div>
 
-          {/* Dynamic Category-Specific Fields */}
+          {/* Dynamic Category-Specific Fields (No emojis in labels) */}
           {type === 'games' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
+                <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                   {t.modal.developer}
                 </label>
                 <input
@@ -330,27 +333,27 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                   value={developer}
                   onChange={(e) => setDeveloper(e.target.value)}
                   placeholder={t.modal.developerPlaceholder}
-                  className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/60 focus:border-[#10B981] focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
-                  {t.modal.achievements} 🏆
+                <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+                  {t.modal.achievements}
                 </label>
                 <input
                   type="number"
                   min={0}
                   value={achievements}
                   onChange={(e) => setAchievements(e.target.value)}
-                  className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 flex items-center justify-between text-xs font-semibold text-[#9CA3AF]">
+                <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-zinc-400">
                   <span>{t.modal.priceBRL}</span>
-                  <span className="text-[11px] font-normal text-[#6EE7B7]">
+                  <span className="text-[11px] font-normal text-zinc-300">
                     {formatBRL(parseNumericPrice(priceBRL))}
                   </span>
                 </label>
@@ -360,7 +363,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                   min={0}
                   value={priceBRL}
                   onChange={(e) => setPriceBRL(e.target.value)}
-                  className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                 />
               </div>
             </div>
@@ -368,30 +371,30 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
 
           {type === 'movies' && (
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
-                {t.modal.duration} ⏱
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+                {t.modal.duration}
               </label>
               <input
                 type="text"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
                 placeholder={t.modal.durationPlaceholder}
-                className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/60 focus:border-[#10B981] focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
               />
             </div>
           )}
 
           {type === 'series' && (
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
-                {t.modal.seasons} 📺
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+                {t.modal.seasons}
               </label>
               <input
                 type="number"
                 min={1}
                 value={seasons}
                 onChange={(e) => setSeasons(e.target.value)}
-                className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+                className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
               />
             </div>
           )}
@@ -399,7 +402,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
           {type === 'books' && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
+                <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                   {t.modal.author}
                 </label>
                 <input
@@ -407,12 +410,12 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                   value={author}
                   onChange={(e) => setAuthor(e.target.value)}
                   placeholder={t.modal.authorPlaceholder}
-                  className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/60 focus:border-[#10B981] focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
+                <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                   {t.modal.publisher}
                 </label>
                 <input
@@ -420,14 +423,14 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                   value={publisher}
                   onChange={(e) => setPublisher(e.target.value)}
                   placeholder={t.modal.publisherPlaceholder}
-                  className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/60 focus:border-[#10B981] focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 flex items-center justify-between text-xs font-semibold text-[#9CA3AF]">
+                <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-zinc-400">
                   <span>{t.modal.priceBRL}</span>
-                  <span className="text-[11px] font-normal text-[#6EE7B7]">
+                  <span className="text-[11px] font-normal text-zinc-300">
                     {formatBRL(parseNumericPrice(priceBRL))}
                   </span>
                 </label>
@@ -437,26 +440,26 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                   min={0}
                   value={priceBRL}
                   onChange={(e) => setPriceBRL(e.target.value)}
-                  className="w-full rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs text-[#F3F4F6] focus:border-[#10B981] focus:outline-none"
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                 />
               </div>
             </div>
           )}
 
-          {/* Status & Currently Consuming Row */}
-          <div className="grid grid-cols-1 gap-4 rounded-xl border border-[#2A2F37] bg-[#16191D] p-3.5 sm:grid-cols-2">
+          {/* Status & Currently Consuming */}
+          <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5 sm:grid-cols-2">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-[#9CA3AF]">
+              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                 {t.modal.status}
               </label>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setStatus('backlog')}
-                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                     status === 'backlog'
-                      ? 'border-[#10B981] bg-[#064E3B] text-[#6EE7B7]'
-                      : 'border-[#2A2F37] bg-[#0D0F11] text-[#9CA3AF]'
+                      ? 'border-white/20 bg-zinc-800 text-white'
+                      : 'border-white/[0.08] bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
                   {t.backlogTab}
@@ -467,10 +470,10 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                     setStatus('consumed');
                     setIsCurrentlyConsuming(false);
                   }}
-                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                     status === 'consumed'
-                      ? 'border-[#10B981] bg-[#064E3B] text-[#6EE7B7]'
-                      : 'border-[#2A2F37] bg-[#0D0F11] text-[#9CA3AF]'
+                      ? 'border-white/20 bg-zinc-800 text-white'
+                      : 'border-white/[0.08] bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
                   }`}
                 >
                   {t.consumedTab}
@@ -480,12 +483,12 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
 
             {type !== 'movies' && status === 'backlog' && (
               <div className="flex items-center pt-2 sm:pt-5">
-                <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs font-medium text-[#F3F4F6]">
+                <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs font-medium text-zinc-200">
                   <input
                     type="checkbox"
                     checked={isCurrentlyConsuming}
                     onChange={(e) => setIsCurrentlyConsuming(e.target.checked)}
-                    className="h-4 w-4 rounded border-[#2A2F37] bg-[#0D0F11] accent-[#10B981]"
+                    className="h-4 w-4 rounded border-white/20 bg-zinc-900 accent-emerald-500"
                   />
                   <span>{t.modal.setCurrentlyConsuming}</span>
                 </label>
@@ -493,20 +496,20 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             )}
           </div>
 
-          {/* Poster Cover Section: Live Preview + Upload File + Direct URL */}
-          <div className="rounded-xl border border-[#2A2F37] bg-[#16191D] p-4">
+          {/* Cover Section: Preview + Upload + URL */}
+          <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-4">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-[#10B981]" />
-                <span className="text-xs font-semibold text-[#F3F4F6]">
+                <ImageIcon className="h-4 w-4 text-zinc-400" />
+                <span className="text-xs font-medium text-zinc-200">
                   {t.modal.coverSection}
                 </span>
                 {coverImage && (
                   <button
                     type="button"
                     onClick={() => setCoverImage('')}
-                    title="Reset to default SVG"
-                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-[#9CA3AF] transition-colors hover:bg-[#2A2F37] hover:text-[#EF4444]"
+                    title="Reset to default cover"
+                    className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-rose-400"
                   >
                     <Trash2 className="h-3 w-3" />
                     <span>{locale === 'pt-BR' ? 'Remover capa' : 'Clear cover'}</span>
@@ -516,15 +519,15 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             </div>
 
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-              {/* Live 2:3 Poster Preview */}
+              {/* 2:3 Poster Preview */}
               <div className="mx-auto flex flex-col items-center sm:mx-0">
-                <div className="relative h-[160px] w-[107px] shrink-0 overflow-hidden rounded-xl border border-[#2A2F37] bg-[#0D0F11] shadow-lg">
+                <div className="relative h-[160px] w-[107px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/40 shadow-md">
                   <img
                     src={previewCover}
                     alt="Cover preview"
                     onError={(e) => {
                       const fallback = createPosterSvgDataUrl(
-                        title || 'Poster',
+                        title || 'Preview',
                         year,
                         type
                       );
@@ -532,18 +535,18 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                         e.currentTarget.src = fallback;
                       }
                     }}
-                    className="h-full w-full object-cover transition-opacity duration-300"
+                    className="h-full w-full object-cover"
                   />
                 </div>
-                <span className="mt-1.5 text-[10px] font-medium text-[#9CA3AF]">
+                <span className="mt-1.5 text-[10px] text-zinc-400">
                   {locale === 'pt-BR' ? 'Pré-visualização' : 'Live Preview'}
                 </span>
               </div>
 
-              {/* Right Column: Upload Local File & Direct URL */}
-              <div className="min-w-0 flex-1 space-y-4">
+              {/* Upload Local File & Direct URL */}
+              <div className="min-w-0 flex-1 space-y-3.5">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#9CA3AF]">
+                  <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                     {t.modal.uploadFile}
                   </label>
                   <input
@@ -557,9 +560,9 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                     type="button"
                     disabled={compressing}
                     onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#2A2F37] bg-[#1F2329] px-4 py-2.5 text-xs font-medium text-[#F3F4F6] transition-colors hover:border-[#3B424D] hover:bg-[#252A32]"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-zinc-800/80 px-4 py-2.5 text-xs font-medium text-zinc-200 transition-colors hover:border-white/20 hover:bg-zinc-700/80 hover:text-white"
                   >
-                    <Upload className="h-4 w-4 text-[#10B981]" />
+                    <Upload className="h-4 w-4 text-zinc-400" />
                     <span>
                       {compressing
                         ? locale === 'pt-BR'
@@ -571,42 +574,36 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-[#9CA3AF]">
+                  <label className="mb-1.5 block text-xs font-medium text-zinc-400">
                     {t.modal.pasteUrl}
                   </label>
                   <div className="relative">
-                    <LinkIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+                    <LinkIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                     <input
                       type="text"
                       value={coverImage.startsWith('data:') ? '' : coverImage}
                       onChange={(e) => setCoverImage(e.target.value)}
                       placeholder={t.modal.urlPlaceholder}
-                      className="w-full rounded-lg border border-[#2A2F37] bg-[#0D0F11] py-2 pr-3 pl-9 text-xs text-[#F3F4F6] placeholder-[#9CA3AF]/50 focus:border-[#10B981] focus:outline-none"
+                      className="w-full rounded-xl border border-white/10 bg-zinc-900/60 py-2 pr-3 pl-9 text-xs text-white placeholder-zinc-400 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                     />
                   </div>
                 </div>
-
-                <p className="text-[11px] leading-relaxed text-[#9CA3AF]/80">
-                  {locale === 'pt-BR'
-                    ? 'Envie uma imagem do seu dispositivo ou cole um link direto. Se não definir uma capa, um pôster geométrico personalizado será gerado automaticamente.'
-                    : 'Upload an image from your device or paste a direct image URL. If omitted, a custom geometric title poster will be generated automatically.'}
-                </p>
               </div>
             </div>
           </div>
 
-          {/* Footer Buttons */}
-          <div className="flex items-center justify-end gap-3 border-t border-[#2A2F37] pt-4">
+          {/* Footer Actions */}
+          <div className="flex items-center justify-end gap-3 border-t border-white/[0.08] pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-[#2A2F37] bg-[#16191D] px-4 py-2 text-xs font-semibold text-[#9CA3AF] transition-colors hover:text-[#F3F4F6]"
+              className="rounded-xl border border-white/10 bg-zinc-800/60 px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:border-white/20 hover:text-white"
             >
               {t.modal.cancel}
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-[#10B981] px-5 py-2 text-xs font-semibold text-[#0D0F11] transition-colors hover:bg-[#059669]"
+              className="rounded-xl border border-white/20 bg-zinc-100 px-5 py-2 text-xs font-medium text-zinc-950 transition-colors hover:bg-white"
             >
               {editingItem ? t.modal.saveChanges : t.modal.createItem}
             </button>

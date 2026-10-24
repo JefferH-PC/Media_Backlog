@@ -98,12 +98,13 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      {/* Category Selector Tabs */}
-      <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#2A2F37] bg-[#16191D] p-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Category Pills & Status Segmented Controller */}
+      <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        {/* Category Pill Tabs */}
         <div
           role="tablist"
           aria-label="Media categories"
-          className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap"
+          className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap"
         >
           {CATEGORIES.map((cat) => {
             const Icon = CATEGORY_ICONS[cat];
@@ -124,10 +125,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                 aria-selected={isSelected}
                 type="button"
                 onClick={() => onSelectCategory(cat)}
-                className={`inline-flex items-center justify-between gap-2.5 rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors sm:justify-start ${
+                className={`inline-flex items-center justify-between gap-2.5 rounded-xl px-3.5 py-2 text-xs font-medium transition-all sm:justify-start ${
                   isSelected
-                    ? 'bg-[#10B981] text-[#0D0F11]'
-                    : 'border border-[#2A2F37] bg-[#0D0F11] text-[#9CA3AF] hover:border-[#3B424D] hover:text-[#F3F4F6]'
+                    ? 'border border-white/20 bg-zinc-100 text-zinc-950 shadow-xs'
+                    : 'border border-white/[0.08] bg-[#121215] text-zinc-400 hover:border-white/15 hover:bg-zinc-800/50 hover:text-zinc-200'
                 }`}
               >
                 <span className="inline-flex items-center gap-2">
@@ -135,10 +136,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                   <span>{dynamicLabel}</span>
                 </span>
                 <span
-                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${
+                  className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
                     isSelected
-                      ? 'bg-[#0D0F11]/20 text-[#0D0F11]'
-                      : 'bg-[#16191D] text-[#9CA3AF]'
+                      ? 'bg-zinc-900/15 text-zinc-900'
+                      : 'bg-zinc-800/80 text-zinc-400'
                   }`}
                 >
                   {countInStatus}
@@ -148,15 +149,15 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
           })}
         </div>
 
-        {/* Status Toggle (Backlog <-> Consumed) */}
-        <div className="flex items-center self-start rounded-lg border border-[#2A2F37] bg-[#0D0F11] p-1 sm:self-auto">
+        {/* Segmented Status Toggle (Backlog | Completed) */}
+        <div className="inline-flex self-start rounded-xl border border-white/[0.08] bg-[#121215] p-1 sm:self-auto">
           <button
             type="button"
             onClick={() => onToggleViewStatus('backlog')}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeStatus === 'backlog'
-                ? 'bg-[#064E3B] text-[#6EE7B7]'
-                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+                ? 'bg-zinc-800 text-zinc-100 shadow-xs'
+                : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             {t.backlogTab}
@@ -164,10 +165,10 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
           <button
             type="button"
             onClick={() => onToggleViewStatus('consumed')}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeStatus === 'consumed'
-                ? 'bg-[#064E3B] text-[#6EE7B7]'
-                : 'text-[#9CA3AF] hover:text-[#F3F4F6]'
+                ? 'bg-zinc-800 text-zinc-100 shadow-xs'
+                : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
             {t.consumedTab}
@@ -175,56 +176,39 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
         </div>
       </div>
 
-      {/* Search Bar & Quick Status Switcher Row */}
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Filter / Search Bar */}
+      <div className="mb-5 flex items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
+          <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder={t.searchPlaceholder(currentCategoryLabel)}
-            className="w-full rounded-xl border border-[#2A2F37] bg-[#16191D] py-2.5 pr-9 pl-10 text-xs text-[#F3F4F6] placeholder-[#9CA3AF] transition-colors focus:border-[#10B981] focus:outline-none"
+            className="w-full rounded-xl border border-white/[0.08] bg-[#121215] py-2.5 pr-9 pl-10 text-xs text-zinc-100 placeholder-zinc-400 transition-colors focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => onSearchChange('')}
-              aria-label="Clear search"
-              className="absolute top-1/2 right-3 -translate-y-1/2 text-[#9CA3AF] hover:text-[#F3F4F6]"
+              aria-label={t.clearSearch}
+              className="absolute top-1/2 right-3 -translate-y-1/2 text-zinc-400 hover:text-white"
             >
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
-
-        <button
-          type="button"
-          onClick={() =>
-            onToggleViewStatus(
-              activeStatus === 'backlog' ? 'consumed' : 'backlog'
-            )
-          }
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-[#2A2F37] bg-[#16191D] px-4 py-2.5 text-xs font-medium text-[#9CA3AF] transition-colors hover:border-[#3B424D] hover:text-[#F3F4F6]"
-        >
-          <span className="h-2 w-2 rounded-full bg-[#10B981]" />
-          <span>
-            {activeStatus === 'backlog'
-              ? t.toggleStatusBtn.toConsumed
-              : t.toggleStatusBtn.toBacklog}
-          </span>
-        </button>
       </div>
 
-      {/* Horizontal Scroll Track with Navigation Arrows */}
+      {/* Media Items Track */}
       {filteredItems.length > 0 ? (
         <div className="group/track relative">
-          {/* Desktop Left Scroll Arrow */}
+          {/* Scroll Left Arrow */}
           <button
             type="button"
             onClick={() => scrollHorizontal('left')}
             aria-label="Scroll left"
-            className="absolute top-1/2 -left-3 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#2A2F37] bg-[#1F2329]/95 text-[#F3F4F6] opacity-0 transition-opacity group-hover/track:opacity-100 hover:border-[#10B981] hover:text-[#10B981] sm:flex"
+            className="absolute top-1/2 -left-3.5 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-zinc-900/90 text-zinc-200 opacity-0 shadow-lg backdrop-blur-md transition-all group-hover/track:opacity-100 hover:border-white/25 hover:bg-zinc-800 hover:text-white sm:flex"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
@@ -246,23 +230,23 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             ))}
           </div>
 
-          {/* Desktop Right Scroll Arrow */}
+          {/* Scroll Right Arrow */}
           <button
             type="button"
             onClick={() => scrollHorizontal('right')}
             aria-label="Scroll right"
-            className="absolute top-1/2 -right-3 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-[#2A2F37] bg-[#1F2329]/95 text-[#F3F4F6] opacity-0 transition-opacity group-hover/track:opacity-100 hover:border-[#10B981] hover:text-[#10B981] sm:flex"
+            className="absolute top-1/2 -right-3.5 z-20 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-zinc-900/90 text-zinc-200 opacity-0 shadow-lg backdrop-blur-md transition-all group-hover/track:opacity-100 hover:border-white/25 hover:bg-zinc-800 hover:text-white sm:flex"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       ) : (
         /* Empty State */
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#2A2F37] bg-[#16191D]/40 px-6 py-14 text-center">
-          <p className="text-sm font-semibold text-[#F3F4F6]">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-[#121215]/40 px-6 py-14 text-center">
+          <p className="text-sm font-medium text-zinc-200">
             {t.emptyCategoryTitle} ({currentCategoryLabel})
           </p>
-          <p className="mt-1 max-w-md text-xs text-[#9CA3AF]">
+          <p className="mt-1 max-w-sm text-xs text-zinc-400">
             {t.emptyCategorySub}
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
@@ -270,7 +254,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               <button
                 type="button"
                 onClick={() => onSearchChange('')}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[#2A2F37] bg-[#16191D] px-3.5 py-2 text-xs font-medium text-[#F3F4F6] hover:border-[#3B424D]"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-zinc-800 px-3.5 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-700 hover:text-white"
               >
                 <X className="h-3.5 w-3.5" />
                 <span>{t.clearSearch}</span>
@@ -279,9 +263,9 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               <button
                 type="button"
                 onClick={onAddItemForCurrentCategory}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#10B981] px-4 py-2 text-xs font-semibold text-[#0D0F11] transition-colors hover:bg-[#059669]"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-zinc-100 px-4 py-2 text-xs font-medium text-zinc-950 transition-colors hover:bg-white"
               >
-                <Plus className="h-4 w-4 stroke-[2.5]" />
+                <Plus className="h-4 w-4 stroke-[2.2]" />
                 <span>{t.addItem}</span>
               </button>
             )}
@@ -290,9 +274,9 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               <button
                 type="button"
                 onClick={onLoadDemoData}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[#2A2F37] bg-[#16191D] px-4 py-2 text-xs font-medium text-[#9CA3AF] transition-colors hover:border-[#10B981] hover:text-[#F3F4F6]"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-[#121215] px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:border-white/20 hover:text-white"
               >
-                <Sparkles className="h-3.5 w-3.5 text-[#10B981]" />
+                <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
                 <span>{t.loadDemoData}</span>
               </button>
             )}

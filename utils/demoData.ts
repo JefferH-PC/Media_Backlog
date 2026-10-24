@@ -4,9 +4,9 @@ export const createPosterSvgDataUrl = (
   title: string,
   subtitle: string,
   category: string,
-  accentHex = '#10B981',
-  bgStart = '#16191D',
-  bgEnd = '#0D0F11'
+  accentHex = '#71717a',
+  bgStart = '#18181b',
+  bgEnd = '#09090b'
 ): string => {
   const safeTitle = title
     .replace(/&/g, '&amp;')
@@ -18,47 +18,64 @@ export const createPosterSvgDataUrl = (
     .replace(/>/g, '&gt;');
   const safeCat = category.toUpperCase();
 
-  // Split title into up to 2 lines for SVG display
+  // Split title into up to 3 lines if long
   const words = safeTitle.split(' ');
-  let line1 = '';
-  let line2 = '';
+  const lines: string[] = [];
+  let currentLine = '';
+
   for (const word of words) {
-    if ((line1 + ' ' + word).trim().length <= 16) {
-      line1 = (line1 + ' ' + word).trim();
+    if ((currentLine + ' ' + word).trim().length <= 15) {
+      currentLine = (currentLine + ' ' + word).trim();
     } else {
-      line2 = (line2 + ' ' + word).trim();
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
     }
   }
-  if (line2.length > 18) {
-    line2 = line2.slice(0, 16) + '...';
+  if (currentLine) lines.push(currentLine);
+
+  const displayLines = lines.slice(0, 3);
+  if (lines.length > 3) {
+    displayLines[2] = displayLines[2].slice(0, 12) + '...';
   }
+
+  const startY =
+    displayLines.length === 1 ? 310 : displayLines.length === 2 ? 295 : 275;
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600" width="400" height="600">
     <defs>
-      <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="${bgStart}"/>
         <stop offset="100%" stop-color="${bgEnd}"/>
       </linearGradient>
-      <linearGradient id="accentGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${accentHex}" stop-opacity="0.18"/>
-        <stop offset="100%" stop-color="${accentHex}" stop-opacity="0.0"/>
+      <linearGradient id="glow" x1="0.5" y1="0" x2="0.5" y2="1">
+        <stop offset="0%" stop-color="${accentHex}" stop-opacity="0.12"/>
+        <stop offset="100%" stop-color="${accentHex}" stop-opacity="0"/>
       </linearGradient>
     </defs>
+    <!-- Background Canvas -->
     <rect width="400" height="600" fill="url(#bg)"/>
-    <rect width="400" height="360" fill="url(#accentGrad)"/>
-    <circle cx="200" cy="210" r="95" fill="none" stroke="${accentHex}" stroke-opacity="0.22" stroke-width="1.5"/>
-    <circle cx="200" cy="210" r="60" fill="none" stroke="${accentHex}" stroke-opacity="0.14" stroke-width="1"/>
-    <line x1="60" y1="210" x2="340" y2="210" stroke="#2A2F37" stroke-width="1"/>
-    <line x1="200" y1="70" x2="200" y2="350" stroke="#2A2F37" stroke-width="1"/>
-    <rect x="32" y="36" width="84" height="24" rx="4" fill="#064E3B"/>
-    <text x="74" y="52" text-anchor="middle" fill="#6EE7B7" font-family="system-ui, sans-serif" font-size="10" font-weight="700" letter-spacing="1.5">${safeCat}</text>
-    <text x="200" y="395" text-anchor="middle" fill="#F3F4F6" font-family="system-ui, sans-serif" font-size="26" font-weight="700">${line1}</text>
-    ${
-      line2
-        ? `<text x="200" y="428" text-anchor="middle" fill="#F3F4F6" font-family="system-ui, sans-serif" font-size="24" font-weight="700">${line2}</text>`
-        : ''
-    }
-    <text x="200" y="462" text-anchor="middle" fill="#9CA3AF" font-family="system-ui, sans-serif" font-size="14" font-weight="500">${safeSub}</text>
+    <rect width="400" height="300" fill="url(#glow)"/>
+
+    <!-- Subtle Inset Hairline Frame -->
+    <rect x="20" y="20" width="360" height="560" rx="3" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
+
+    <!-- Top Editorial Header -->
+    <text x="44" y="60" fill="${accentHex}" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" letter-spacing="2.5">${safeCat}</text>
+    <circle cx="352" cy="56" r="3.5" fill="${accentHex}" opacity="0.6"/>
+
+    <!-- Title Lines -->
+    ${displayLines
+      .map(
+        (line, idx) =>
+          `<text x="44" y="${startY + idx * 36}" fill="#f4f4f5" font-family="Georgia, serif" font-size="28" font-weight="600" letter-spacing="-0.3">${line}</text>`
+      )
+      .join('\n    ')}
+
+    <!-- Minimal Hairline Divider -->
+    <line x1="44" y1="425" x2="104" y2="425" stroke="${accentHex}" stroke-opacity="0.45" stroke-width="1.5"/>
+
+    <!-- Editorial Subtitle / Metadata Footer -->
+    <text x="44" y="460" fill="#a1a1aa" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500" letter-spacing="0.2">${safeSub}</text>
   </svg>`;
 
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -82,11 +99,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: true,
         coverImage: createPosterSvgDataUrl(
           'Elden Ring',
-          'FromSoftware • 2022',
-          'GAME',
-          '#10B981',
-          '#18221F',
-          '#0D0F11'
+          'FromSoftware · 2022',
+          'Game',
+          '#38bdf8',
+          '#0f172a',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -103,11 +120,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           "Baldur's Gate 3",
-          'Larian Studios • 2023',
-          'GAME',
-          '#10B981',
-          '#1B1E24',
-          '#0D0F11'
+          'Larian Studios · 2023',
+          'Game',
+          '#818cf8',
+          '#131127',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -115,7 +132,7 @@ export const getDemoDatabase = (): AppDatabase => {
       {
         id: 'demo-game-3',
         type: 'games',
-        title: 'Cyberpunk 2077: Phantom Liberty',
+        title: 'Cyberpunk 2077',
         developer: 'CD Projekt Red',
         year: 2023,
         achievements: 65,
@@ -124,11 +141,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Cyberpunk 2077',
-          'CD Projekt Red • 2023',
-          'GAME',
-          '#10B981',
-          '#192028',
-          '#0D0F11'
+          'CD Projekt Red · 2023',
+          'Game',
+          '#34d399',
+          '#111e19',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -145,11 +162,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Hollow Knight',
-          'Team Cherry • 2017',
-          'PLAYED',
-          '#059669',
-          '#141A1F',
-          '#0D0F11'
+          'Team Cherry · 2017',
+          'Played',
+          '#a1a1aa',
+          '#18181b',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -166,11 +183,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Oppenheimer',
-          '3h 00m • 2023',
-          'MOVIE',
-          '#10B981',
-          '#1E1B18',
-          '#0D0F11'
+          '3h 00m · Christopher Nolan',
+          'Film',
+          '#f59e0b',
+          '#21160d',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -185,11 +202,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Anatomy of a Fall',
-          '2h 32m • 2023',
-          'MOVIE',
-          '#10B981',
-          '#161C22',
-          '#0D0F11'
+          '2h 32m · Justine Triet',
+          'Film',
+          '#38bdf8',
+          '#0f1722',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -204,11 +221,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Parasite',
-          '2h 12m • 2019',
-          'WATCHED',
-          '#059669',
-          '#141E1A',
-          '#0D0F11'
+          '2h 12m · Bong Joon-ho',
+          'Watched',
+          '#a1a1aa',
+          '#18181b',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -225,11 +242,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: true,
         coverImage: createPosterSvgDataUrl(
           'Severance',
-          '2 Seasons • 2022-2025',
-          'SERIES',
-          '#10B981',
-          '#152120',
-          '#0D0F11'
+          '2 Seasons · 2022-2025',
+          'Series',
+          '#38bdf8',
+          '#0e1b20',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -244,11 +261,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Shōgun',
-          '1 Season • 2024',
-          'SERIES',
-          '#10B981',
-          '#1A1D24',
-          '#0D0F11'
+          '1 Season · 2024',
+          'Series',
+          '#f59e0b',
+          '#22170f',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -263,11 +280,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Breaking Bad',
-          '5 Seasons • 2008-2013',
-          'WATCHED',
-          '#059669',
-          '#14201A',
-          '#0D0F11'
+          '5 Seasons · 2008-2013',
+          'Watched',
+          '#a1a1aa',
+          '#18181b',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -286,11 +303,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: true,
         coverImage: createPosterSvgDataUrl(
           'Dune',
-          'Frank Herbert • Aleph',
-          'BOOK',
-          '#10B981',
-          '#1D1E19',
-          '#0D0F11'
+          'Frank Herbert · Aleph',
+          'Book',
+          '#fb923c',
+          '#22160e',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -307,11 +324,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           'Project Hail Mary',
-          'Andy Weir • Suma',
-          'BOOK',
-          '#10B981',
-          '#161B22',
-          '#0D0F11'
+          'Andy Weir · Suma',
+          'Book',
+          '#38bdf8',
+          '#0e1622',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,
@@ -328,11 +345,11 @@ export const getDemoDatabase = (): AppDatabase => {
         isCurrentlyConsuming: false,
         coverImage: createPosterSvgDataUrl(
           '1984',
-          'George Orwell',
-          'READ',
-          '#059669',
-          '#161E1B',
-          '#0D0F11'
+          'George Orwell · 1949',
+          'Read',
+          '#a1a1aa',
+          '#18181b',
+          '#09090b'
         ),
         createdAt: now,
         updatedAt: now,

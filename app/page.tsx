@@ -186,14 +186,14 @@ export default function HomePage() {
 
   if (!isHydrated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0D0F11] text-xs text-[#9CA3AF]">
-        Loading tracker...
+      <div className="flex min-h-screen items-center justify-center bg-[#09090b] text-xs text-zinc-500">
+        Loading...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0D0F11] pb-16 text-[#F3F4F6]">
+    <div className="min-h-screen bg-[#09090b] pb-20 text-zinc-100">
       <Header
         locale={locale}
         onToggleLocale={handleToggleLocale}
@@ -205,8 +205,7 @@ export default function HomePage() {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed right-5 bottom-5 z-50 rounded-xl border border-[#10B981]/50 bg-[#1F2329] px-4 py-2.5 text-xs font-medium text-[#F3F4F6]">
-          <span className="mr-2 inline-block h-2 w-2 rounded-full bg-[#10B981]" />
+        <div className="fixed right-5 bottom-5 z-50 rounded-xl border border-white/10 bg-[#18181d] px-4 py-2.5 text-xs font-medium text-white shadow-xl backdrop-blur-md transition-all">
           {toastMessage}
         </div>
       )}
