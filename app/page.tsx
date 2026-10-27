@@ -18,6 +18,7 @@ import { Header } from '@/components/Header';
 import { CurrentlyConsumingHero } from '@/components/CurrentlyConsumingHero';
 import { CategorySection } from '@/components/CategorySection';
 import { AddEditItemModal } from '@/components/AddEditItemModal';
+import { EvaluationModal } from '@/components/EvaluationModal';
 import { ConfirmDeleteModal } from '@/components/ConfirmDeleteModal';
 import { ConfirmReplaceActiveModal } from '@/components/ConfirmReplaceActiveModal';
 import { ImportConflictModal } from '@/components/ImportConflictModal';
@@ -49,6 +50,7 @@ export default function HomePage() {
   // Modal states
   const [isAddEditOpen, setIsAddEditOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MediaItem | null>(null);
+  const [evaluatingItem, setEvaluatingItem] = useState<MediaItem | null>(null);
   const [deletingItem, setDeletingItem] = useState<MediaItem | null>(null);
   const [replacePrompt, setReplacePrompt] = useState<{
     current: MediaItem;
@@ -217,7 +219,14 @@ export default function HomePage() {
           activeGame={activeGame}
           activeSeries={activeSeries}
           activeBook={activeBook}
-          onMarkConsumed={(type, id) => markAsConsumed(type, id)}
+          onMarkConsumed={(type, id) => {
+            const item = db[type].find((x) => x.id === id);
+            if (item) {
+              setEvaluatingItem(item);
+            } else {
+              markAsConsumed(type, id);
+            }
+          }}
           onRemoveFromActive={(type, id) =>
             setCurrentlyConsuming(type, id, false)
           }
@@ -236,14 +245,58 @@ export default function HomePage() {
           }}
           onToggleViewStatus={(status) => setActiveStatus(status)}
           onSearchChange={setSearchQuery}
-          onToggleItemStatus={(item) => toggleItemStatus(item.type, item.id)}
+          onToggleItemStatus={(item) => {
+            if (item.status === 'backlog') {
+              setEvaluatingItem(item);
+            } else {
+              toggleItemStatus(item.type, item.id);
+            }
+          }}
           onConsumeNow={handleConsumeNow}
           onEditItem={handleOpenEditModal}
           onDeleteItem={(item) => setDeletingItem(item)}
           onAddItemForCurrentCategory={handleOpenAddModal}
           onLoadDemoData={handleLoadDemo}
+          onEvaluateItem={(item) => setEvaluatingItem(item)}
         />
       </main>
+
+      {/* Evaluation & Review Modal */}
+      <EvaluationModal
+        isOpen={Boolean(evaluatingItem)}
+        locale={locale}
+        item={evaluatingItem}
+        onClose={() => setEvaluatingItem(null)}
+        onConfirm={(data) => {
+          if (evaluatingItem) {
+            updateItem({
+              ...evaluatingItem,
+              status: 'consumed',
+              completedAt: data.completedAt,
+              rating: data.rating,
+              notes: data.notes,
+              isCurrentlyConsuming: false,
+            });
+            setEvaluatingItem(null);
+            showToast(
+              locale === 'pt-BR'
+                ? 'Item concluído e avaliado!'
+                : 'Item completed and evaluated!'
+            );
+          }
+        }}
+        onSkip={() => {
+          if (evaluatingItem) {
+            markAsConsumed(evaluatingItem.type, evaluatingItem.id);
+            setEvaluatingItem(null);
+            showToast(
+              locale === 'pt-BR'
+                ? 'Item marcado como concluído!'
+                : 'Item marked as completed!'
+            );
+          }
+        }}
+      />
 
       {/* Add / Edit Item Modal */}
       <AddEditItemModal

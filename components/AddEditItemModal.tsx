@@ -15,6 +15,9 @@ import {
   Calendar,
   Tag,
   MessageSquare,
+  Sparkles,
+  Loader2,
+  Check,
 } from 'lucide-react';
 import {
   ItemStatus,
@@ -26,6 +29,20 @@ import { translations, PLATFORM_PRESETS } from '@/utils/i18n';
 import { formatBRL, generateId } from '@/utils/format';
 import { compressImage } from '@/utils/imageCompressor';
 import { createPosterSvgDataUrl } from '@/utils/demoData';
+
+interface LookupSuggestion {
+  title: string;
+  year?: string | number;
+  coverImage: string;
+  type: MediaType;
+  developer?: string;
+  author?: string;
+  publisher?: string;
+  duration?: string;
+  seasons?: number;
+  platform?: string;
+  description?: string;
+}
 
 interface AddEditItemModalProps {
   isOpen: boolean;
@@ -46,6 +63,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
 }) => {
   const t = translations[locale];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   const [type, setType] = useState<MediaType>(initialCategory);
   const [status, setStatus] = useState<ItemStatus>('backlog');
@@ -54,11 +72,18 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   const [year, setYear] = useState<string>(String(new Date().getFullYear()));
   const [coverImage, setCoverImage] = useState('');
 
+  // Auto Lookup state
+  const [suggestions, setSuggestions] = useState<LookupSuggestion[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [hasManualCover, setHasManualCover] = useState(false);
+  const [autoAppliedTitle, setAutoAppliedTitle] = useState<string | null>(null);
+
   // Platform & completion
   const [platform, setPlatform] = useState('');
   const [completedDate, setCompletedDate] = useState('');
 
-  // Ratings & Notes
+  // Ratings & Notes (only active when editing an already consumed item)
   const [rating, setRating] = useState<number | undefined>(undefined);
   const [hoverRating, setHoverRating] = useState<number | undefined>(undefined);
   const [notes, setNotes] = useState('');
@@ -84,6 +109,11 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setIsSearching(false);
+    setAutoAppliedTitle(null);
+
     if (editingItem) {
       setType(editingItem.type);
       setStatus(editingItem.status);
@@ -91,6 +121,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle(editingItem.title);
       setYear(String(editingItem.year));
       setCoverImage(editingItem.coverImage || '');
+      setHasManualCover(Boolean(editingItem.coverImage));
       setPlatform(editingItem.platform || '');
       setRating(editingItem.rating);
       setNotes(editingItem.notes || '');
@@ -120,6 +151,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setTitle('');
       setYear(String(new Date().getFullYear()));
       setCoverImage('');
+      setHasManualCover(false);
       setPlatform('');
       setRating(undefined);
       setNotes('');
@@ -134,6 +166,17 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     }
   }, [isOpen, editingItem, initialCategory]);
 
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Close on Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -145,7 +188,77 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Automatic media lookup: debounced search on title input
+  useEffect(() => {
+    const trimmed = title.trim();
+    if (!isOpen || trimmed.length < 2) {
+      setSuggestions([]);
+      setIsSearching(false);
+      return;
+    }
+
+    // Skip if editing existing item and title hasn't changed
+    if (editingItem && editingItem.title.trim().toLowerCase() === trimmed.toLowerCase()) {
+      return;
+    }
+
+    let isCancelled = false;
+    setIsSearching(true);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/media-lookup?type=${type}&q=${encodeURIComponent(trimmed)}`
+        );
+        if (!res.ok || isCancelled) return;
+        const data = await res.json();
+        const results: LookupSuggestion[] = data.results || [];
+
+        if (!isCancelled) {
+          setSuggestions(results);
+          setShowSuggestions(results.length > 0);
+
+          // Hybrid Auto-apply: if coverImage is empty or was auto-applied, automatically set the #1 match
+          if (results.length > 0 && (!coverImage || !hasManualCover)) {
+            const top = results[0];
+            setCoverImage(top.coverImage);
+            setAutoAppliedTitle(top.title);
+            if (top.year) setYear(String(top.year));
+            if (top.developer && type === 'games') setDeveloper(top.developer);
+            if (top.author && type === 'books') setAuthor(top.author);
+            if (top.publisher && type === 'books') setPublisher(top.publisher);
+            if (top.platform && !platform) setPlatform(top.platform);
+          }
+        }
+      } catch (err) {
+        console.error('Auto lookup error:', err);
+      } finally {
+        if (!isCancelled) {
+          setIsSearching(false);
+        }
+      }
+    }, 400);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, [title, type, isOpen, editingItem, hasManualCover, coverImage, platform]);
+
   if (!isOpen) return null;
+
+  const handleSelectSuggestion = (suggestion: LookupSuggestion) => {
+    setTitle(suggestion.title);
+    setCoverImage(suggestion.coverImage);
+    setAutoAppliedTitle(suggestion.title);
+    setHasManualCover(false);
+    if (suggestion.year) setYear(String(suggestion.year));
+    if (suggestion.developer && type === 'games') setDeveloper(suggestion.developer);
+    if (suggestion.author && type === 'books') setAuthor(suggestion.author);
+    if (suggestion.publisher && type === 'books') setPublisher(suggestion.publisher);
+    if (suggestion.platform) setPlatform(suggestion.platform);
+    setShowSuggestions(false);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -154,6 +267,8 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     try {
       const webpBase64 = await compressImage(file, 300, 450, 0.75);
       setCoverImage(webpBase64);
+      setHasManualCover(true);
+      setAutoAppliedTitle(null);
     } catch (err) {
       console.error('Image compression failed:', err);
     } finally {
@@ -188,8 +303,11 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
         type
       );
 
+    // If adding a new item, status is strictly 'backlog' (evaluations occur when marking as consumed)
+    const effectiveStatus: ItemStatus = editingItem ? status : 'backlog';
+
     const resolvedCompletedAt =
-      status === 'consumed'
+      effectiveStatus === 'consumed'
         ? completedDate
           ? new Date(completedDate + 'T12:00:00.000Z').toISOString()
           : now
@@ -199,14 +317,18 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       id: editingItem ? editingItem.id : generateId(),
       title: cleanTitle,
       year: parsedYear,
-      status,
+      status: effectiveStatus,
       coverImage: finalCover,
       platform: platform.trim() || undefined,
-      rating: rating && rating > 0 ? rating : undefined,
-      notes: notes.trim() || undefined,
+      // Ratings and notes are preserved only for already consumed items
+      rating:
+        effectiveStatus === 'consumed' && rating && rating > 0
+          ? rating
+          : undefined,
+      notes: effectiveStatus === 'consumed' ? notes.trim() || undefined : undefined,
       completedAt: resolvedCompletedAt,
       isCurrentlyConsuming:
-        type !== 'movies' && status === 'backlog'
+        type !== 'movies' && effectiveStatus === 'backlog'
           ? isCurrentlyConsuming
           : false,
       createdAt: editingItem ? editingItem.createdAt : now,
@@ -267,6 +389,9 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
 
   const presets = PLATFORM_PRESETS[type] || [];
 
+  // Determine if this item is in edit mode and is already marked consumed
+  const isEditingConsumed = Boolean(editingItem && editingItem.status === 'consumed');
+
   return (
     <div
       role="dialog"
@@ -310,6 +435,9 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                       if (newType === 'movies') {
                         setIsCurrentlyConsuming(false);
                       }
+                      // Clear suggestions for new category
+                      setSuggestions([]);
+                      setShowSuggestions(false);
                     }}
                     className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition-all ${
                       active
@@ -325,20 +453,95 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             </div>
           </div>
 
-          {/* Title and Year Fields */}
+          {/* Title and Year Fields with Autocomplete Dropdown */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="sm:col-span-2">
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                {t.modal.title} *
+            <div className="relative sm:col-span-2">
+              <label className="mb-1.5 flex items-center justify-between text-xs font-medium text-zinc-400">
+                <span>{t.modal.title} *</span>
+                {autoAppliedTitle && (
+                  <span className="flex items-center gap-1 text-[11px] text-emerald-400">
+                    <Sparkles className="h-3 w-3" />
+                    <span>{t.autoLookup.applied}</span>
+                  </span>
+                )}
               </label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={t.modal.titlePlaceholder}
-                className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
-              />
+
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (hasManualCover) setHasManualCover(false);
+                  }}
+                  onFocus={() => {
+                    if (suggestions.length > 0) setShowSuggestions(true);
+                  }}
+                  placeholder={t.modal.titlePlaceholder}
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3.5 py-2 pr-9 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
+                />
+
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+                  ) : autoAppliedTitle ? (
+                    <Check className="h-4 w-4 text-emerald-400" />
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Floating Suggestions Dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div
+                  ref={dropdownRef}
+                  className="absolute left-0 right-0 top-full z-40 mt-1 max-h-60 overflow-y-auto rounded-xl border border-white/10 bg-[#16161b] p-1.5 shadow-2xl backdrop-blur-md"
+                >
+                  <div className="flex items-center justify-between px-2 py-1 text-[10px] font-semibold tracking-wider text-zinc-400 uppercase">
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-emerald-400" />
+                      <span>{t.autoLookup.suggestions}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSuggestions(false)}
+                      className="text-zinc-500 hover:text-white"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-1">
+                    {suggestions.map((item, idx) => (
+                      <button
+                        key={`${item.title}-${idx}`}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(item)}
+                        className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-white/[0.08]"
+                      >
+                        <div className="relative h-11 w-7.5 shrink-0 overflow-hidden rounded border border-white/10 bg-black/40">
+                          <img
+                            src={item.coverImage}
+                            alt={item.title}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-white">
+                            {item.title}
+                          </p>
+                          <p className="truncate text-[10px] text-zinc-400">
+                            {item.year ? `${item.year} ` : ''}
+                            {item.developer ? `· ${item.developer} ` : ''}
+                            {item.author ? `· ${item.author} ` : ''}
+                            {item.platform ? `· ${item.platform}` : ''}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
@@ -493,7 +696,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
               </label>
             </div>
 
-            {/* Platform Presets Chips */}
             <div className="mb-2.5 flex flex-wrap gap-1.5">
               {presets.map((preset) => {
                 const isSelected = platform === preset;
@@ -523,139 +725,157 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             />
           </div>
 
-          {/* Section: 2. Ratings & Personal Notes */}
-          <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Star className="h-4 w-4 text-amber-400 fill-amber-400/30" />
-                <span className="text-xs font-semibold text-white">
-                  {t.ratingsAndNotesSection}
+          {/* Section: Ratings & Personal Notes - ONLY shown when editing an ALREADY CONSUMED item */}
+          {isEditingConsumed && (
+            <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-amber-400 fill-amber-400/30" />
+                  <span className="text-xs font-semibold text-white">
+                    {t.ratingsAndNotesSection}
+                  </span>
+                </div>
+                {rating !== undefined && (
+                  <button
+                    type="button"
+                    onClick={() => setRating(undefined)}
+                    className="text-[11px] text-zinc-400 hover:text-rose-400 transition-colors"
+                  >
+                    {locale === 'pt-BR' ? 'Limpar nota' : 'Clear rating'}
+                  </button>
+                )}
+              </div>
+
+              {/* Interactive 5-Star Rating Picker */}
+              <div className="mb-3.5 flex items-center gap-1.5">
+                {[1, 2, 3, 4, 5].map((starValue) => {
+                  const activeVal = hoverRating ?? rating ?? 0;
+                  const isFilled = starValue <= activeVal;
+                  return (
+                    <button
+                      key={starValue}
+                      type="button"
+                      onClick={() => setRating(rating === starValue ? undefined : starValue)}
+                      onMouseEnter={() => setHoverRating(starValue)}
+                      onMouseLeave={() => setHoverRating(undefined)}
+                      aria-label={`Rate ${starValue} star`}
+                      className="p-1 transition-transform hover:scale-110"
+                    >
+                      <Star
+                        className={`h-5 w-5 transition-colors ${
+                          isFilled
+                            ? 'fill-amber-400 text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                            : 'text-zinc-600 hover:text-zinc-400'
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+                <span className="ml-2 text-xs text-zinc-400">
+                  {rating ? `${rating} / 5` : t.unrated}
                 </span>
               </div>
-              {rating !== undefined && (
-                <button
-                  type="button"
-                  onClick={() => setRating(undefined)}
-                  className="text-[11px] text-zinc-400 hover:text-rose-400 transition-colors"
-                >
-                  {locale === 'pt-BR' ? 'Limpar nota' : 'Clear rating'}
-                </button>
-              )}
-            </div>
 
-            {/* Interactive 5-Star Rating Picker */}
-            <div className="mb-3.5 flex items-center gap-1.5">
-              {[1, 2, 3, 4, 5].map((starValue) => {
-                const activeVal = hoverRating ?? rating ?? 0;
-                const isFilled = starValue <= activeVal;
-                return (
-                  <button
-                    key={starValue}
-                    type="button"
-                    onClick={() => setRating(rating === starValue ? undefined : starValue)}
-                    onMouseEnter={() => setHoverRating(starValue)}
-                    onMouseLeave={() => setHoverRating(undefined)}
-                    aria-label={`Rate ${starValue} star`}
-                    className="p-1 transition-transform hover:scale-110"
-                  >
-                    <Star
-                      className={`h-5 w-5 transition-colors ${
-                        isFilled
-                          ? 'fill-amber-400 text-amber-400'
-                          : 'text-zinc-600 hover:text-zinc-400'
-                      }`}
-                    />
-                  </button>
-                );
-              })}
-              <span className="ml-2 text-xs text-zinc-400">
-                {rating ? `${rating} / 5` : t.unrated}
-              </span>
-            </div>
-
-            {/* Notes Textarea */}
-            <div>
-              <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-400">
-                <MessageSquare className="h-3 w-3 text-zinc-400" />
-                <span>{t.modal.notes}</span>
-              </label>
-              <textarea
-                rows={3}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder={t.modal.notesPlaceholder}
-                className="w-full rounded-xl border border-white/10 bg-zinc-900/60 p-3 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none resize-none"
-              />
-            </div>
-          </div>
-
-          {/* Status & Currently Consuming & Completion Date */}
-          <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-xs font-medium text-zinc-400">
-                {t.modal.status}
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setStatus('backlog')}
-                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    status === 'backlog'
-                      ? 'border-white/20 bg-zinc-800 text-white'
-                      : 'border-white/[0.08] bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  {t.backlogTab}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStatus('consumed');
-                    setIsCurrentlyConsuming(false);
-                  }}
-                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                    status === 'consumed'
-                      ? 'border-white/20 bg-zinc-800 text-white'
-                      : 'border-white/[0.08] bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  {t.consumedTab}
-                </button>
-              </div>
-            </div>
-
-            {/* Conditional Right Field: In Progress check for Backlog, or Date Completed for Consumed */}
-            {status === 'consumed' ? (
+              {/* Notes Textarea */}
               <div>
                 <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-400">
-                  <Calendar className="h-3 w-3 text-zinc-400" />
-                  <span>{t.modal.completedDate}</span>
+                  <MessageSquare className="h-3 w-3 text-zinc-400" />
+                  <span>{t.modal.notes}</span>
                 </label>
-                <input
-                  type="date"
-                  value={completedDate}
-                  onChange={(e) => setCompletedDate(e.target.value)}
-                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-1.5 text-xs text-white focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
+                <textarea
+                  rows={3}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder={t.modal.notesPlaceholder}
+                  className="w-full rounded-xl border border-white/10 bg-zinc-900/60 p-3 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none resize-none"
                 />
               </div>
-            ) : (
-              type !== 'movies' && (
-                <div className="flex items-center pt-2 sm:pt-5">
-                  <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs font-medium text-zinc-200">
-                    <input
-                      type="checkbox"
-                      checked={isCurrentlyConsuming}
-                      onChange={(e) => setIsCurrentlyConsuming(e.target.checked)}
-                      className="h-4 w-4 rounded border-white/20 bg-zinc-900 accent-emerald-500"
-                    />
-                    <span>{t.modal.setCurrentlyConsuming}</span>
-                  </label>
-                </div>
-              )
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Cover Section: Preview + Upload + URL */}
+          {/* Currently Consuming or Completed Date */}
+          {editingItem ? (
+            <div className="grid grid-cols-1 gap-4 rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5 sm:grid-cols-2">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-zinc-400">
+                  {t.modal.status}
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStatus('backlog')}
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      status === 'backlog'
+                        ? 'border-white/20 bg-zinc-800 text-white'
+                        : 'border-white/[0.08] bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {t.backlogTab}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStatus('consumed');
+                      setIsCurrentlyConsuming(false);
+                    }}
+                    className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      status === 'consumed'
+                        ? 'border-white/20 bg-zinc-800 text-white'
+                        : 'border-white/[0.08] bg-zinc-900/60 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {t.consumedTab}
+                  </button>
+                </div>
+              </div>
+
+              {status === 'consumed' ? (
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+                    <Calendar className="h-3 w-3 text-zinc-400" />
+                    <span>{t.modal.completedDate}</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={completedDate}
+                    onChange={(e) => setCompletedDate(e.target.value)}
+                    className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-1.5 text-xs text-white focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
+                  />
+                </div>
+              ) : (
+                type !== 'movies' && (
+                  <div className="flex items-center pt-2 sm:pt-5">
+                    <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs font-medium text-zinc-200">
+                      <input
+                        type="checkbox"
+                        checked={isCurrentlyConsuming}
+                        onChange={(e) => setIsCurrentlyConsuming(e.target.checked)}
+                        className="h-4 w-4 rounded border-white/20 bg-zinc-900 accent-emerald-500"
+                      />
+                      <span>{t.modal.setCurrentlyConsuming}</span>
+                    </label>
+                  </div>
+                )
+              )}
+            </div>
+          ) : (
+            /* When adding a new item: optional In-Progress focus switch */
+            type !== 'movies' && (
+              <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5">
+                <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs font-medium text-zinc-200">
+                  <input
+                    type="checkbox"
+                    checked={isCurrentlyConsuming}
+                    onChange={(e) => setIsCurrentlyConsuming(e.target.checked)}
+                    className="h-4 w-4 rounded border-white/20 bg-zinc-900 accent-emerald-500"
+                  />
+                  <span>{t.modal.setCurrentlyConsuming}</span>
+                </label>
+              </div>
+            )
+          )}
+
+          {/* Cover Section: Preview + Upload + URL (Automatic Cover is prioritized) */}
           <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-4">
             <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -666,7 +886,11 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                 {coverImage && (
                   <button
                     type="button"
-                    onClick={() => setCoverImage('')}
+                    onClick={() => {
+                      setCoverImage('');
+                      setHasManualCover(true);
+                      setAutoAppliedTitle(null);
+                    }}
                     title="Reset to default cover"
                     className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-rose-400"
                   >
@@ -702,7 +926,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                 </span>
               </div>
 
-              {/* Upload Local File & Direct URL */}
+              {/* Upload Local File & Direct URL (Optional Overrides) */}
               <div className="min-w-0 flex-1 space-y-3.5">
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-zinc-400">
@@ -741,7 +965,11 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                     <input
                       type="text"
                       value={coverImage.startsWith('data:') ? '' : coverImage}
-                      onChange={(e) => setCoverImage(e.target.value)}
+                      onChange={(e) => {
+                        setCoverImage(e.target.value);
+                        setHasManualCover(true);
+                        setAutoAppliedTitle(null);
+                      }}
                       placeholder={t.modal.urlPlaceholder}
                       className="w-full rounded-xl border border-white/10 bg-zinc-900/60 py-2 pr-3 pl-9 text-xs text-white placeholder-zinc-400 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
                     />

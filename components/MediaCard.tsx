@@ -25,6 +25,7 @@ interface MediaCardProps {
   onConsumeNow: (item: MediaItem) => void;
   onEdit: (item: MediaItem) => void;
   onDelete: (item: MediaItem) => void;
+  onEvaluate?: (item: MediaItem) => void;
 }
 
 export const MediaCard: React.FC<MediaCardProps> = ({
@@ -34,6 +35,7 @@ export const MediaCard: React.FC<MediaCardProps> = ({
   onConsumeNow,
   onEdit,
   onDelete,
+  onEvaluate,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showNotesModal, setShowNotesModal] = useState(false);
@@ -165,10 +167,17 @@ export const MediaCard: React.FC<MediaCardProps> = ({
 
             {/* Star Rating Badge */}
             {item.rating && (
-              <span className="inline-flex items-center gap-0.5 rounded-md border border-amber-500/30 bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => onEvaluate?.(item)}
+                title={item.status === 'consumed' ? t.evaluationModal.title : undefined}
+                className={`inline-flex items-center gap-0.5 rounded-md border border-amber-500/30 bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 backdrop-blur-md ${
+                  onEvaluate ? 'hover:bg-amber-500/20 cursor-pointer transition-colors' : ''
+                }`}
+              >
                 <Star className="h-2.5 w-2.5 fill-amber-400" />
                 <span>{item.rating}</span>
-              </span>
+              </button>
             )}
           </div>
 
@@ -184,7 +193,20 @@ export const MediaCard: React.FC<MediaCardProps> = ({
             </button>
 
             {menuOpen && (
-              <div className="absolute right-0 mt-1.5 w-32 overflow-hidden rounded-xl border border-white/10 bg-[#18181d] py-1 shadow-xl backdrop-blur-md z-30">
+              <div className="absolute right-0 mt-1.5 w-36 overflow-hidden rounded-xl border border-white/10 bg-[#18181d] py-1 shadow-xl backdrop-blur-md z-30">
+                {item.status === 'consumed' && onEvaluate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEvaluate(item);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-amber-400 transition-colors hover:bg-amber-500/10"
+                  >
+                    <Star className="h-3.5 w-3.5 fill-amber-400/30" />
+                    <span>{t.evaluationModal.title}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {

@@ -37,6 +37,7 @@ interface CategorySectionProps {
   onDeleteItem: (item: MediaItem) => void;
   onAddItemForCurrentCategory: () => void;
   onLoadDemoData: () => void;
+  onEvaluateItem?: (item: MediaItem) => void;
 }
 
 const CATEGORY_ICONS: Record<MediaType, React.ElementType> = {
@@ -63,6 +64,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
   onDeleteItem,
   onAddItemForCurrentCategory,
   onLoadDemoData,
+  onEvaluateItem,
 }) => {
   const [selectedPlatform, setSelectedPlatform] = useState<string>('');
   const t = translations[locale];
@@ -266,6 +268,7 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
               onConsumeNow={onConsumeNow}
               onEdit={onEditItem}
               onDelete={onDeleteItem}
+              onEvaluate={onEvaluateItem}
             />
           ))}
         </div>
