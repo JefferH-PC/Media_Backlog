@@ -133,11 +133,6 @@ export const EvaluationModal: React.FC<EvaluationModalProps> = ({
                 <span className="rounded-md border border-white/10 bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-zinc-300">
                   {badgeLabel}
                 </span>
-                {item.platform && (
-                  <span className="truncate rounded-md border border-white/10 bg-zinc-800/80 px-1.5 py-0.5 text-[9px] text-zinc-400">
-                    {item.platform}
-                  </span>
-                )}
                 {item.year && (
                   <span className="text-[10px] text-zinc-500">
                     {item.year}

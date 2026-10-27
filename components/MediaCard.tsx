@@ -158,13 +158,6 @@ export const MediaCard: React.FC<MediaCardProps> = ({
               </span>
             )}
 
-            {/* Platform / Format Tag */}
-            {item.platform && (
-              <span className="truncate rounded-md border border-white/10 bg-zinc-900/80 px-1.5 py-0.5 text-[9px] font-medium text-zinc-300 backdrop-blur-md">
-                {item.platform}
-              </span>
-            )}
-
             {/* Star Rating Badge */}
             {item.rating && (
               <button

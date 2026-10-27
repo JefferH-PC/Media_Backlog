@@ -10,7 +10,6 @@ import {
   Plus,
   Sparkles,
   X,
-  Tag,
 } from 'lucide-react';
 import {
   AppDatabase,
@@ -66,7 +65,6 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
   onLoadDemoData,
   onEvaluateItem,
 }) => {
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('');
   const t = translations[locale];
 
   const isDatabaseCompletelyEmpty =
@@ -77,24 +75,12 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
 
   const categoryItems: MediaItem[] = db[activeCategory] || [];
 
-  // Extract unique platforms for the active category
-  const availablePlatforms = Array.from(
-    new Set(
-      categoryItems
-        .filter((item) => item.status === activeStatus && item.platform)
-        .map((item) => item.platform as string)
-    )
-  ).sort();
-
   const filteredItems = categoryItems.filter((item) => {
     const matchesStatus = item.status === activeStatus;
     const matchesSearch = item.title
       .toLowerCase()
       .includes(searchQuery.trim().toLowerCase());
-    const matchesPlatform = selectedPlatform
-      ? item.platform === selectedPlatform
-      : true;
-    return matchesStatus && matchesSearch && matchesPlatform;
+    return matchesStatus && matchesSearch;
   });
 
   const currentCategoryLabel = getCategoryDisplayName(
@@ -133,7 +119,6 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
                 type="button"
                 onClick={() => {
                   onSelectCategory(cat);
-                  setSelectedPlatform('');
                 }}
                 className={`inline-flex items-center justify-between gap-2.5 rounded-xl px-3.5 py-2 text-xs font-medium transition-all sm:justify-start ${
                   isSelected
@@ -165,7 +150,6 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             type="button"
             onClick={() => {
               onToggleViewStatus('backlog');
-              setSelectedPlatform('');
             }}
             className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeStatus === 'backlog'
@@ -179,7 +163,6 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             type="button"
             onClick={() => {
               onToggleViewStatus('consumed');
-              setSelectedPlatform('');
             }}
             className={`rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all ${
               activeStatus === 'consumed'
@@ -214,46 +197,6 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             </button>
           )}
         </div>
-
-        {/* Platform / Format Tag Filter Chips */}
-        {availablePlatforms.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            <span className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 mr-1">
-              <Tag className="h-3 w-3" />
-              <span>{t.platform}:</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedPlatform('')}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                selectedPlatform === ''
-                  ? 'border border-white/20 bg-zinc-200 text-zinc-950 font-semibold'
-                  : 'border border-white/[0.08] bg-[#121215] text-zinc-400 hover:text-white'
-              }`}
-            >
-              {t.allPlatforms}
-            </button>
-            {availablePlatforms.map((plat) => {
-              const isPlatActive = selectedPlatform === plat;
-              return (
-                <button
-                  key={plat}
-                  type="button"
-                  onClick={() =>
-                    setSelectedPlatform(isPlatActive ? '' : plat)
-                  }
-                  className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                    isPlatActive
-                      ? 'border border-white/20 bg-zinc-200 text-zinc-950 font-semibold'
-                      : 'border border-white/[0.08] bg-[#121215] text-zinc-400 hover:text-white'
-                  }`}
-                >
-                  {plat}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       {/* Dense Grid View */}
@@ -282,12 +225,11 @@ export const CategorySection: React.FC<CategorySectionProps> = ({
             {t.emptyCategorySub}
           </p>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-            {searchQuery || selectedPlatform ? (
+            {searchQuery ? (
               <button
                 type="button"
                 onClick={() => {
                   onSearchChange('');
-                  setSelectedPlatform('');
                 }}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-zinc-800 px-3.5 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-700 hover:text-white"
               >

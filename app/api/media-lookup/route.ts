@@ -10,7 +10,6 @@ export interface MediaLookupResult {
   publisher?: string;
   duration?: string;
   seasons?: number;
-  platform?: string;
   description?: string;
 }
 
@@ -51,7 +50,7 @@ export async function GET(request: Request) {
 }
 
 // -------------------------------------------------------------
-// 1. Series Lookup: Auto-fills Year & Seasons (TVMaze)
+// 1. Series Lookup: TVMaze with Popularity/Weight Ranking & Seasons
 // -------------------------------------------------------------
 async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
@@ -64,7 +63,7 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
       const res = await fetch(tmdbUrl, { next: { revalidate: 3600 } });
       if (res.ok) {
         const data = await res.json();
-        const candidateShows = (data.results || []).slice(0, 3);
+        const candidateShows = (data.results || []).slice(0, 4);
         for (const item of candidateShows) {
           if (item.poster_path) {
             let totalSeasons = 1;
@@ -105,14 +104,20 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
     );
     if (res.ok) {
       const data = await res.json();
-      const topItems = (data || []).slice(0, 4);
+      // Sort candidates by weight (prominence) and score to prioritize canonical hits
+      const sortedItems = (data || []).sort((a: any, b: any) => {
+        const weightA = a.show?.weight || 0;
+        const weightB = b.show?.weight || 0;
+        return weightB - weightA;
+      });
+
+      const topItems = sortedItems.slice(0, 4);
 
       for (const item of topItems) {
         const show = item.show;
         if (!show) continue;
         const cover = show.image?.original || show.image?.medium;
         if (cover) {
-          // Fetch seasons count
           let totalSeasons = 1;
           try {
             const seasonsRes = await fetch(
@@ -127,7 +132,6 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
             }
           } catch {}
 
-          const platformName = show.network?.name || show.webChannel?.name;
           const premierYear = show.premiered ? show.premiered.slice(0, 4) : undefined;
 
           results.push({
@@ -136,7 +140,6 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
             seasons: totalSeasons,
             coverImage: cover.replace('http:', 'https:'),
             type: 'series',
-            platform: platformName || undefined,
             description: show.summary ? show.summary.replace(/<[^>]*>/g, '').trim() : undefined,
           });
         }
@@ -150,29 +153,60 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
 }
 
 // -------------------------------------------------------------
-// 2. Books Lookup: Auto-fills Author & Year (Open Library)
+// 2. Books Lookup: Open Library with Strict Edition & Quality Ranking
 // -------------------------------------------------------------
 async function lookupBooks(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
+  const queryLower = query.toLowerCase().trim();
+
+  // Junk noise filters to reject self-published summaries, journals, and workbooks
+  const noiseKeywords = [
+    'summary of',
+    'workbook',
+    'study guide',
+    'journal',
+    'analysis of',
+    'notes on',
+    'companion to',
+    'gradesaver',
+    'cliffsnotes',
+  ];
 
   try {
     const res = await fetch(
-      `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=6`,
+      `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=12`,
       { headers: { 'User-Agent': USER_AGENT } }
     );
     if (res.ok) {
       const data = await res.json();
-      for (const doc of data.docs || []) {
-        if (doc.cover_i) {
-          results.push({
-            title: doc.title,
-            year: doc.first_publish_year ? String(doc.first_publish_year) : undefined,
-            author: doc.author_name?.[0] || 'Unknown Author',
-            coverImage: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`,
-            type: 'books',
-            publisher: doc.publisher?.[0] || 'Unknown Publisher',
-          });
-        }
+      const docs = (data.docs || [])
+        .filter((d: any) => {
+          if (!d.cover_i) return false;
+          const titleLower = (d.title || '').toLowerCase();
+          return !noiseKeywords.some((noise) => titleLower.includes(noise));
+        })
+        .sort((a: any, b: any) => {
+          const tA = (a.title || '').toLowerCase().trim();
+          const tB = (b.title || '').toLowerCase().trim();
+
+          const matchA = tA === queryLower ? 100 : tA.startsWith(queryLower) ? 50 : 0;
+          const matchB = tB === queryLower ? 100 : tB.startsWith(queryLower) ? 50 : 0;
+
+          const edA = Math.min(a.edition_count || 0, 50);
+          const edB = Math.min(b.edition_count || 0, 50);
+
+          return matchB + edB - (matchA + edA);
+        });
+
+      for (const doc of docs.slice(0, 4)) {
+        results.push({
+          title: doc.title,
+          year: doc.first_publish_year ? String(doc.first_publish_year) : undefined,
+          author: doc.author_name?.[0] || 'Unknown Author',
+          coverImage: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`,
+          type: 'books',
+          publisher: doc.publisher?.[0] || 'Unknown Publisher',
+        });
       }
     }
   } catch (err) {
@@ -183,10 +217,22 @@ async function lookupBooks(query: string): Promise<MediaLookupResult[]> {
 }
 
 // -------------------------------------------------------------
-// 3. Games Lookup: Auto-fills Year & Developer (Steam + Wiki)
+// 3. Games Lookup: Steam 600x900 Vertical Box Art + Wikipedia Fallback
 // -------------------------------------------------------------
 async function lookupGames(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
+  const queryLower = query.toLowerCase().trim();
+
+  // Junk noise filters to reject soundtracks, DLCs, and server packages
+  const junkKeywords = [
+    'soundtrack',
+    'dlc',
+    'expansion',
+    'dedicated server',
+    'artbook',
+    'pack',
+    'demo',
+  ];
 
   // RAWG key if provided
   const rawgKey = process.env.RAWG_API_KEY;
@@ -205,7 +251,6 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
               developer: g.developers?.[0]?.name,
               coverImage: g.background_image,
               type: 'games',
-              platform: g.platforms?.[0]?.platform?.name,
             });
           }
         }
@@ -224,40 +269,51 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
     );
     if (res.ok) {
       const data = await res.json();
-      const items = (data.items || []).slice(0, 4);
+      const filteredItems = (data.items || [])
+        .filter((item: any) => {
+          if (!item.id || !item.name) return false;
+          const nameLower = item.name.toLowerCase();
+          return !junkKeywords.some((junk) => nameLower.includes(junk));
+        })
+        .sort((a: any, b: any) => {
+          const nameA = a.name.toLowerCase().trim();
+          const nameB = b.name.toLowerCase().trim();
+          const scoreA = nameA === queryLower ? 100 : nameA.startsWith(queryLower) ? 50 : 0;
+          const scoreB = nameB === queryLower ? 100 : nameB.startsWith(queryLower) ? 50 : 0;
+          return scoreB - scoreA;
+        });
 
-      for (const item of items) {
-        if (item.id) {
-          let developer: string | undefined = undefined;
-          let year: string | undefined = undefined;
+      const topItems = filteredItems.slice(0, 4);
 
-          try {
-            const detailRes = await fetch(
-              `https://store.steampowered.com/api/appdetails?appids=${item.id}&l=english`,
-              { headers: { 'User-Agent': USER_AGENT } }
-            );
-            if (detailRes.ok) {
-              const detailJson = await detailRes.json();
-              const appData = detailJson[String(item.id)]?.data;
-              if (appData) {
-                developer = appData.developers?.[0];
-                const yearMatch = appData.release_date?.date?.match(/\b(19\d\d|20\d\d)\b/);
-                if (yearMatch) {
-                  year = yearMatch[1];
-                }
+      for (const item of topItems) {
+        let developer: string | undefined = undefined;
+        let year: string | undefined = undefined;
+
+        try {
+          const detailRes = await fetch(
+            `https://store.steampowered.com/api/appdetails?appids=${item.id}&l=english`,
+            { headers: { 'User-Agent': USER_AGENT } }
+          );
+          if (detailRes.ok) {
+            const detailJson = await detailRes.json();
+            const appData = detailJson[String(item.id)]?.data;
+            if (appData) {
+              developer = appData.developers?.[0];
+              const yearMatch = appData.release_date?.date?.match(/\b(19\d\d|20\d\d)\b/);
+              if (yearMatch) {
+                year = yearMatch[1];
               }
             }
-          } catch {}
+          }
+        } catch {}
 
-          results.push({
-            title: item.name,
-            year,
-            developer,
-            coverImage: `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/library_600x900.jpg`,
-            type: 'games',
-            platform: 'Steam',
-          });
-        }
+        results.push({
+          title: item.name,
+          year,
+          developer,
+          coverImage: `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/library_600x900.jpg`,
+          type: 'games',
+        });
       }
     }
   } catch (err) {
@@ -268,57 +324,63 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
   if (results.length === 0) {
     try {
       const searchRes = await fetch(
-        `https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(query + ' video game')}&limit=2`,
+        `https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(query + ' video game')}&limit=6`,
         { headers: { 'User-Agent': USER_AGENT } }
       );
       if (searchRes.ok) {
         const searchData = await searchRes.json();
-        for (const page of searchData.pages || []) {
-          if (page.key) {
-            const sumRes = await fetch(
-              `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.key)}`,
-              { headers: { 'User-Agent': USER_AGENT } }
-            );
-            if (sumRes.ok) {
-              const sum = await sumRes.json();
-              if (sum.thumbnail?.source) {
-                let developer: string | undefined = undefined;
-                let year: string | undefined = undefined;
+        const candidatePages = (searchData.pages || []).filter((page: any) => {
+          const t = page.title.toLowerCase();
+          const d = (page.description || '').toLowerCase();
+          if (t.includes('franchise') || t.includes('list of') || t.includes('characters')) return false;
+          return d.includes('video game') || d.includes('game') || d.includes('developed by');
+        });
 
-                try {
-                  const parseRes = await fetch(
-                    `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page.key)}&prop=wikitext&format=json&section=0`,
-                    { headers: { 'User-Agent': USER_AGENT } }
-                  );
-                  if (parseRes.ok) {
-                    const parseData = await parseRes.json();
-                    const wt = parseData.parse?.wikitext?.['*'] || '';
-                    const devMatch = wt.match(/developer\s*=\s*(?:\[\[(?:[^|\]]*\|)?([^\]]+)\]\]|([^\n|]+))/i);
-                    if (devMatch) {
-                      developer = (devMatch[1] || devMatch[2]).replace(/\{\{[^}]*\}\}/g, '').trim();
-                    }
-                    const yearMatch = wt.match(/released\s*=\s*.*?(\d{4})/i) || sum.description?.match(/\b(19\d\d|20\d\d)\b/);
-                    if (yearMatch) {
-                      year = yearMatch[1];
-                    }
+        for (const page of candidatePages.slice(0, 2)) {
+          const sumRes = await fetch(
+            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.key)}`,
+            { headers: { 'User-Agent': USER_AGENT } }
+          );
+          if (sumRes.ok) {
+            const sum = await sumRes.json();
+            // Ensure image is a vertical box art (height > width)
+            if (sum.thumbnail && sum.thumbnail.height > sum.thumbnail.width) {
+              let developer: string | undefined = undefined;
+              let year: string | undefined = undefined;
+
+              try {
+                const parseRes = await fetch(
+                  `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page.key)}&prop=wikitext&format=json&section=0`,
+                  { headers: { 'User-Agent': USER_AGENT } }
+                );
+                if (parseRes.ok) {
+                  const parseData = await parseRes.json();
+                  const wt = parseData.parse?.wikitext?.['*'] || '';
+                  const devMatch = wt.match(/developer\s*=\s*(?:\[\[(?:[^|\]]*\|)?([^\]]+)\]\]|([^\n|]+))/i);
+                  if (devMatch) {
+                    developer = (devMatch[1] || devMatch[2]).replace(/\{\{[^}]*\}\}/g, '').trim();
                   }
-                } catch {}
-
-                if (!year) {
-                  const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/);
-                  if (yearMatch) year = yearMatch[1];
+                  const yearMatch = wt.match(/released\s*=\s*.*?(\d{4})/i) || sum.description?.match(/\b(19\d\d|20\d\d)\b/);
+                  if (yearMatch) {
+                    year = yearMatch[1];
+                  }
                 }
+              } catch {}
 
-                results.push({
-                  title: sum.title.replace(/\s*\(video game\)/i, ''),
-                  year,
-                  developer,
-                  coverImage: sum.thumbnail.source,
-                  type: 'games',
-                  description: sum.description,
-                });
-                break;
+              if (!year) {
+                const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/);
+                if (yearMatch) year = yearMatch[1];
               }
+
+              results.push({
+                title: sum.title.replace(/\s*\(video game\)/i, ''),
+                year,
+                developer,
+                coverImage: sum.thumbnail.source,
+                type: 'games',
+                description: sum.description,
+              });
+              break;
             }
           }
         }
@@ -332,12 +394,12 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
 }
 
 // -------------------------------------------------------------
-// 4. Movies Lookup: Auto-fills Release Year & Duration (Wiki / TMDB)
+// 4. Movies Lookup: Strict Vertical 2:3 Theatrical Posters & Infobox Runtime
 // -------------------------------------------------------------
 async function lookupMovies(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
+  const queryLower = query.toLowerCase().trim();
 
-  // Helper to format minutes to "Xh Ym"
   const formatDuration = (totalMinutes: number): string => {
     if (!totalMinutes || totalMinutes <= 0) return '2h 00m';
     const hours = Math.floor(totalMinutes / 60);
@@ -389,67 +451,89 @@ async function lookupMovies(query: string): Promise<MediaLookupResult[]> {
     }
   }
 
-  // 2. Wikipedia Theatrical Movie Poster + Infobox Runtime & Year Search
+  // 2. Wikipedia Theatrical Movie Poster + Strict 2:3 Ratio & Title Match
   try {
     const searchRes = await fetch(
-      `https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(query + ' film')}&limit=3`,
+      `https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(query + ' film')}&limit=8`,
       { headers: { 'User-Agent': USER_AGENT } }
     );
     if (searchRes.ok) {
       const searchData = await searchRes.json();
-      for (const page of searchData.pages || []) {
-        if (page.key) {
-          const sumRes = await fetch(
-            `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.key)}`,
-            { headers: { 'User-Agent': USER_AGENT } }
-          );
-          if (sumRes.ok) {
-            const sum = await sumRes.json();
-            if (sum.thumbnail?.source) {
-              let duration: string | undefined = undefined;
-              let year: string | undefined = undefined;
 
-              // Parse section 0 infobox for runtime & release date
-              try {
-                const parseRes = await fetch(
-                  `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page.key)}&prop=wikitext&format=json&section=0`,
-                  { headers: { 'User-Agent': USER_AGENT } }
-                );
-                if (parseRes.ok) {
-                  const parseData = await parseRes.json();
-                  const wt = parseData.parse?.wikitext?.['*'] || '';
+      // Score and sort pages: prioritize exact title matches over sequels or franchises
+      const scoredPages = (searchData.pages || [])
+        .filter((page: any) => {
+          const t = page.title.toLowerCase();
+          const d = (page.description || '').toLowerCase();
+          // Filter out franchises, soundtracks, character bios, and "in film" lists
+          if (
+            t.endsWith('in film') ||
+            t.includes('franchise') ||
+            t.includes('character') ||
+            t.includes('soundtrack') ||
+            t.includes('list of')
+          ) {
+            return false;
+          }
+          return d.includes('film') || d.includes('movie') || d.includes('directed by');
+        })
+        .sort((a: any, b: any) => {
+          const cleanA = a.title.toLowerCase().replace(/\s*\([^)]*\)/g, '').trim();
+          const cleanB = b.title.toLowerCase().replace(/\s*\([^)]*\)/g, '').trim();
+          const scoreA = cleanA === queryLower ? 100 : cleanA.startsWith(queryLower) ? 50 : 10;
+          const scoreB = cleanB === queryLower ? 100 : cleanB.startsWith(queryLower) ? 50 : 10;
+          return scoreB - scoreA;
+        });
 
-                  // Match runtime
-                  const runtimeMatch = wt.match(/runtime\s*=\s*(?:\{\{[^}]*\}\}\s*)?(\d+)\s*(?:min|minutes|\b)/i);
-                  if (runtimeMatch) {
-                    const mins = parseInt(runtimeMatch[1], 10);
-                    if (mins > 0) {
-                      duration = formatDuration(mins);
-                    }
-                  }
+      for (const page of scoredPages.slice(0, 4)) {
+        const sumRes = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(page.key)}`,
+          { headers: { 'User-Agent': USER_AGENT } }
+        );
+        if (sumRes.ok) {
+          const sum = await sumRes.json();
+          // Strict vertical poster filter: Height MUST be at least 1.15x Width to discard wide banner images
+          if (sum.thumbnail && sum.thumbnail.height > sum.thumbnail.width * 1.15) {
+            let duration: string | undefined = undefined;
+            let year: string | undefined = undefined;
 
-                  // Match year
-                  const dateMatch = wt.match(/release_date\s*=\s*.*?(\d{4})/i);
-                  if (dateMatch) {
-                    year = dateMatch[1];
+            try {
+              const parseRes = await fetch(
+                `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page.key)}&prop=wikitext&format=json&section=0`,
+                { headers: { 'User-Agent': USER_AGENT } }
+              );
+              if (parseRes.ok) {
+                const parseData = await parseRes.json();
+                const wt = parseData.parse?.wikitext?.['*'] || '';
+
+                const runtimeMatch = wt.match(/runtime\s*=\s*(?:\{\{[^}]*\}\}\s*)?(\d+)\s*(?:min|minutes|\b)/i);
+                if (runtimeMatch) {
+                  const mins = parseInt(runtimeMatch[1], 10);
+                  if (mins > 0) {
+                    duration = formatDuration(mins);
                   }
                 }
-              } catch {}
 
-              if (!year) {
-                const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/) || sum.extract?.match(/\b(19\d\d|20\d\d)\b/);
-                if (yearMatch) year = yearMatch[1];
+                const dateMatch = wt.match(/release_date\s*=\s*.*?(\d{4})/i);
+                if (dateMatch) {
+                  year = dateMatch[1];
+                }
               }
+            } catch {}
 
-              results.push({
-                title: sum.title.replace(/\s*\(\d{4}\s*film\)/i, '').replace(/\s*\(film\)/i, ''),
-                year,
-                duration: duration || '2h 00m',
-                coverImage: sum.thumbnail.source,
-                type: 'movies',
-                description: sum.description,
-              });
+            if (!year) {
+              const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/) || sum.extract?.match(/\b(19\d\d|20\d\d)\b/);
+              if (yearMatch) year = yearMatch[1];
             }
+
+            results.push({
+              title: sum.title.replace(/\s*\(\d{4}\s*film\)/i, '').replace(/\s*\(film\)/i, ''),
+              year,
+              duration: duration || '2h 00m',
+              coverImage: sum.thumbnail.source,
+              type: 'movies',
+              description: sum.description,
+            });
           }
         }
       }

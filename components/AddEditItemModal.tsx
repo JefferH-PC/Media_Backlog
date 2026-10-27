@@ -13,7 +13,6 @@ import {
   Image as ImageIcon,
   Star,
   Calendar,
-  Tag,
   MessageSquare,
   Sparkles,
   Loader2,
@@ -25,7 +24,7 @@ import {
   MediaItem,
   MediaType,
 } from '@/types/backlog';
-import { translations, PLATFORM_PRESETS } from '@/utils/i18n';
+import { translations } from '@/utils/i18n';
 import { formatBRL, generateId } from '@/utils/format';
 import { compressImage } from '@/utils/imageCompressor';
 import { createPosterSvgDataUrl } from '@/utils/demoData';
@@ -79,8 +78,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   const [hasManualCover, setHasManualCover] = useState(false);
   const [autoAppliedTitle, setAutoAppliedTitle] = useState<string | null>(null);
 
-  // Platform & completion
-  const [platform, setPlatform] = useState('');
+  // Completed date
   const [completedDate, setCompletedDate] = useState('');
 
   // Ratings & Notes (only active when editing an already consumed item)
@@ -122,7 +120,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setYear(String(editingItem.year));
       setCoverImage(editingItem.coverImage || '');
       setHasManualCover(Boolean(editingItem.coverImage));
-      setPlatform(editingItem.platform || '');
       setRating(editingItem.rating);
       setNotes(editingItem.notes || '');
       setCompletedDate(
@@ -152,7 +149,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       setYear(String(new Date().getFullYear()));
       setCoverImage('');
       setHasManualCover(false);
-      setPlatform('');
       setRating(undefined);
       setNotes('');
       setCompletedDate(new Date().toISOString().split('T')[0]);
@@ -229,7 +225,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             if (type === 'series' && top.seasons) setSeasons(String(top.seasons));
             if (type === 'books' && top.author) setAuthor(top.author);
             if (type === 'books' && top.publisher) setPublisher(top.publisher);
-            if (top.platform && !platform) setPlatform(top.platform);
           }
         }
       } catch (err) {
@@ -245,7 +240,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       isCancelled = true;
       clearTimeout(timer);
     };
-  }, [title, type, isOpen, editingItem, hasManualCover, coverImage, platform]);
+  }, [title, type, isOpen, editingItem, hasManualCover, coverImage]);
 
   if (!isOpen) return null;
 
@@ -260,7 +255,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     if (type === 'series' && suggestion.seasons) setSeasons(String(suggestion.seasons));
     if (type === 'books' && suggestion.author) setAuthor(suggestion.author);
     if (type === 'books' && suggestion.publisher) setPublisher(suggestion.publisher);
-    if (suggestion.platform) setPlatform(suggestion.platform);
     setShowSuggestions(false);
   };
 
@@ -323,7 +317,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
       year: parsedYear,
       status: effectiveStatus,
       coverImage: finalCover,
-      platform: platform.trim() || undefined,
+      platform: editingItem?.platform,
       // Ratings and notes are preserved only for already consumed items
       rating:
         effectiveStatus === 'consumed' && rating && rating > 0
@@ -390,8 +384,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     { id: 'series', label: t.slotLabels.series, icon: Tv },
     { id: 'books', label: t.slotLabels.books, icon: BookOpen },
   ];
-
-  const presets = PLATFORM_PRESETS[type] || [];
 
   // Determine if this item is in edit mode and is already marked consumed
   const isEditingConsumed = Boolean(editingItem && editingItem.status === 'consumed');
@@ -538,8 +530,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                             {type === 'games' && (
                               <span>
                                 {item.year ? `${item.year} ` : ''}
-                                {item.developer ? `· ${item.developer} ` : ''}
-                                {item.platform ? `· ${item.platform}` : ''}
+                                {item.developer ? `· ${item.developer}` : ''}
                               </span>
                             )}
                             {type === 'movies' && (
@@ -551,8 +542,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                             {type === 'series' && (
                               <span>
                                 {item.year ? `${item.year} ` : ''}
-                                {item.seasons ? `· ${item.seasons === 1 ? '1 Season' : `${item.seasons} Seasons`} ` : ''}
-                                {item.platform ? `· ${item.platform}` : ''}
+                                {item.seasons ? `· ${item.seasons === 1 ? '1 Season' : `${item.seasons} Seasons`}` : ''}
                               </span>
                             )}
                             {type === 'books' && (
@@ -712,44 +702,6 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
               </div>
             </div>
           )}
-
-          {/* Platform / Format Tag Options */}
-          <div className="rounded-xl border border-white/[0.08] bg-zinc-900/40 p-3.5">
-            <div className="mb-2 flex items-center justify-between">
-              <label className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
-                <Tag className="h-3.5 w-3.5 text-zinc-400" />
-                <span>{t.modal.platform}</span>
-              </label>
-            </div>
-
-            <div className="mb-2.5 flex flex-wrap gap-1.5">
-              {presets.map((preset) => {
-                const isSelected = platform === preset;
-                return (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setPlatform(isSelected ? '' : preset)}
-                    className={`rounded-lg px-2.5 py-1 text-[11px] font-medium transition-colors ${
-                      isSelected
-                        ? 'border border-white/20 bg-zinc-200 text-zinc-950 font-semibold'
-                        : 'border border-white/[0.08] bg-zinc-800/60 text-zinc-300 hover:border-white/20 hover:text-white'
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                );
-              })}
-            </div>
-
-            <input
-              type="text"
-              value={platform}
-              onChange={(e) => setPlatform(e.target.value)}
-              placeholder={t.modal.platformPlaceholder}
-              className="w-full rounded-xl border border-white/10 bg-zinc-900/60 px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
-            />
-          </div>
 
           {/* Section: Ratings & Personal Notes - ONLY shown when editing an ALREADY CONSUMED item */}
           {isEditingConsumed && (
