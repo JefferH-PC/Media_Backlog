@@ -17,6 +17,8 @@ import {
   Sparkles,
   Loader2,
   Check,
+  Images,
+  Search as SearchIcon,
 } from 'lucide-react';
 import {
   ItemStatus,
@@ -41,6 +43,7 @@ interface LookupSuggestion {
   seasons?: number;
   platform?: string;
   description?: string;
+  images?: string[];
 }
 
 interface AddEditItemModalProps {
@@ -78,6 +81,12 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   const [hasManualCover, setHasManualCover] = useState(false);
   const [autoAppliedTitle, setAutoAppliedTitle] = useState<string | null>(null);
 
+  // Cover Image Chooser state
+  const [isImagePickerOpen, setIsImagePickerOpen] = useState(false);
+  const [imagePickerSearch, setImagePickerSearch] = useState('');
+  const [isSearchingImages, setIsSearchingImages] = useState(false);
+  const [customDiscoveredImages, setCustomDiscoveredImages] = useState<string[]>([]);
+
   // Completed date
   const [completedDate, setCompletedDate] = useState('');
 
@@ -111,6 +120,10 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     setShowSuggestions(false);
     setIsSearching(false);
     setAutoAppliedTitle(null);
+    setIsImagePickerOpen(false);
+    setImagePickerSearch('');
+    setIsSearchingImages(false);
+    setCustomDiscoveredImages([]);
 
     if (editingItem) {
       setType(editingItem.type);
@@ -214,11 +227,27 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
           setSuggestions(results);
           setShowSuggestions(results.length > 0);
 
+          // Collect all discovered candidate images
+          const foundImages: string[] = [];
+          for (const r of results) {
+            if (r.coverImage) foundImages.push(r.coverImage);
+            if (Array.isArray(r.images)) {
+              for (const img of r.images) {
+                if (img) foundImages.push(img);
+              }
+            }
+          }
+          if (foundImages.length > 0) {
+            setCustomDiscoveredImages((prev) => Array.from(new Set([...prev, ...foundImages])));
+          }
+
           // Hybrid Auto-apply: if coverImage is empty or was auto-applied, automatically set the #1 match
           if (results.length > 0 && (!coverImage || !hasManualCover)) {
             const top = results[0];
-            setCoverImage(top.coverImage);
-            setAutoAppliedTitle(top.title);
+            if (top.coverImage) {
+              setCoverImage(top.coverImage);
+              setAutoAppliedTitle(top.title);
+            }
             if (top.year) setYear(String(top.year));
             if (type === 'games' && top.developer) setDeveloper(top.developer);
             if (type === 'movies' && top.duration) setDuration(top.duration);
@@ -242,11 +271,73 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     };
   }, [title, type, isOpen, editingItem, hasManualCover, coverImage]);
 
+  const fetchCandidateImages = async (searchQuery: string, searchType: MediaType) => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    setIsSearchingImages(true);
+    try {
+      const res = await fetch(
+        `/api/media-lookup?type=${searchType}&q=${encodeURIComponent(trimmed)}`
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      const results: LookupSuggestion[] = data.results || [];
+      const found: string[] = [];
+      for (const r of results) {
+        if (r.coverImage) found.push(r.coverImage);
+        if (Array.isArray(r.images)) {
+          for (const img of r.images) {
+            if (img) found.push(img);
+          }
+        }
+      }
+      if (suggestions.length === 0 && results.length > 0) {
+        setSuggestions(results);
+      }
+      setCustomDiscoveredImages((prev) => Array.from(new Set([...prev, ...found])));
+    } catch (err) {
+      console.error('Error fetching candidate images:', err);
+    } finally {
+      setIsSearchingImages(false);
+    }
+  };
+
+  const handleOpenImagePicker = () => {
+    const activeTitle = title.trim();
+    setImagePickerSearch(activeTitle);
+    setIsImagePickerOpen(true);
+
+    const hasImagesAlready =
+      customDiscoveredImages.length > 0 ||
+      suggestions.some((s) => s.coverImage || (s.images && s.images.length > 0));
+
+    if (!hasImagesAlready && activeTitle.length >= 2) {
+      fetchCandidateImages(activeTitle, type);
+    }
+  };
+
+  const handleSelectCoverImage = (imgUrl: string) => {
+    setCoverImage(imgUrl);
+    setHasManualCover(true);
+    setAutoAppliedTitle(null);
+    setIsImagePickerOpen(false);
+  };
+
+  const allCandidateImages = Array.from(
+    new Set([
+      ...(coverImage && coverImage.startsWith('http') ? [coverImage] : []),
+      ...customDiscoveredImages,
+      ...suggestions.flatMap((s) => [s.coverImage, ...(s.images || [])]).filter(Boolean),
+    ])
+  ).filter((img) => img && typeof img === 'string' && img.startsWith('http'));
+
   if (!isOpen) return null;
 
   const handleSelectSuggestion = (suggestion: LookupSuggestion) => {
     setTitle(suggestion.title);
-    setCoverImage(suggestion.coverImage);
+    if (suggestion.coverImage) {
+      setCoverImage(suggestion.coverImage);
+    }
     setAutoAppliedTitle(suggestion.title);
     setHasManualCover(false);
     if (suggestion.year) setYear(String(suggestion.year));
@@ -255,6 +346,12 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     if (type === 'series' && suggestion.seasons) setSeasons(String(suggestion.seasons));
     if (type === 'books' && suggestion.author) setAuthor(suggestion.author);
     if (type === 'books' && suggestion.publisher) setPublisher(suggestion.publisher);
+
+    const suggestionImages = [suggestion.coverImage, ...(suggestion.images || [])].filter(Boolean) as string[];
+    if (suggestionImages.length > 0) {
+      setCustomDiscoveredImages((prev) => Array.from(new Set([...prev, ...suggestionImages])));
+    }
+
     setShowSuggestions(false);
   };
 
@@ -294,7 +391,7 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     const now = new Date().toISOString();
 
     const finalCover =
-      coverImage.trim() ||
+      (coverImage || '').trim() ||
       createPosterSvgDataUrl(
         cleanTitle,
         String(parsedYear),
@@ -371,10 +468,10 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
   };
 
   const previewCover =
-    coverImage.trim() ||
+    (coverImage || '').trim() ||
     createPosterSvgDataUrl(
       title.trim() || 'Preview',
-      year.trim() || String(new Date().getFullYear()),
+      String(year).trim() || String(new Date().getFullYear()),
       type
     );
 
@@ -517,8 +614,14 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                       >
                         <div className="relative h-11 w-7.5 shrink-0 overflow-hidden rounded border border-white/10 bg-black/40">
                           <img
-                            src={item.coverImage}
+                            src={item.coverImage || createPosterSvgDataUrl(item.title, String(item.year || ''), type)}
                             alt={item.title}
+                            onError={(e) => {
+                              const fallback = createPosterSvgDataUrl(item.title, String(item.year || ''), type);
+                              if (e.currentTarget.src !== fallback) {
+                                e.currentTarget.src = fallback;
+                              }
+                            }}
                             className="h-full w-full object-cover"
                           />
                         </div>
@@ -880,26 +983,53 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             </div>
 
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-              {/* 2:3 Poster Preview */}
+              {/* 2:3 Poster Preview - Clickable to choose other images */}
               <div className="mx-auto flex flex-col items-center sm:mx-0">
-                <div className="relative h-[160px] w-[107px] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-black/40 shadow-md">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={handleOpenImagePicker}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleOpenImagePicker();
+                    }
+                  }}
+                  title={t.imagePicker.clickToChange}
+                  aria-label={t.imagePicker.clickToChange}
+                  className="group relative h-[160px] w-[107px] shrink-0 cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-black/40 shadow-md transition-all duration-200 hover:border-white/30 hover:shadow-xl hover:shadow-emerald-500/10 focus:outline-none focus:ring-2 focus:ring-white/30"
+                >
                   <img
                     src={previewCover}
                     alt="Cover preview"
                     onError={(e) => {
                       const fallback = createPosterSvgDataUrl(
                         title || 'Preview',
-                        year,
+                        String(year),
                         type
                       );
                       if (e.currentTarget.src !== fallback) {
                         e.currentTarget.src = fallback;
                       }
                     }}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                   />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/65 p-2 text-center opacity-0 backdrop-blur-xs transition-opacity duration-200 group-hover:opacity-100">
+                    <Images className="h-5 w-5 text-emerald-400 mb-1" />
+                    <span className="text-[10px] font-semibold text-white leading-tight">
+                      {t.imagePicker.changeCover}
+                    </span>
+                  </div>
                 </div>
-                <span className="mt-1.5 text-[10px] text-zinc-400">
+                <button
+                  type="button"
+                  onClick={handleOpenImagePicker}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800/80 px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:border-white/20 hover:bg-zinc-700 hover:text-white"
+                >
+                  <Images className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>{t.imagePicker.changeCover}</span>
+                </button>
+                <span className="mt-1 text-[10px] text-zinc-400">
                   {locale === 'pt-BR' ? 'Pré-visualização' : 'Live Preview'}
                 </span>
               </div>
@@ -974,6 +1104,172 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             </button>
           </div>
         </form>
+
+        {/* Modal: Interactive Recommendation Cover Image Chooser */}
+        {isImagePickerOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="image-picker-title"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+          >
+            <div className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-2xl border border-white/10 bg-[#141418] p-5 shadow-2xl">
+              {/* Image Picker Header */}
+              <div className="mb-4 flex items-center justify-between border-b border-white/[0.08] pb-3.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-zinc-800/60">
+                    <Images className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h3 id="image-picker-title" className="text-sm font-semibold text-white">
+                      {t.imagePicker.title}
+                    </h3>
+                    <p className="text-[11px] text-zinc-400">
+                      {t.imagePicker.subtitle}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsImagePickerOpen(false)}
+                  className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-white"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Search Bar inside Image Chooser */}
+              <div className="mb-4 flex items-center gap-2">
+                <div className="relative flex-1">
+                  <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={imagePickerSearch}
+                    onChange={(e) => setImagePickerSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        fetchCandidateImages(imagePickerSearch, type);
+                      }
+                    }}
+                    placeholder={t.imagePicker.searchPlaceholder}
+                    className="w-full rounded-xl border border-white/10 bg-zinc-900/80 py-2 pr-3 pl-8 text-xs text-white placeholder-zinc-500 focus:border-white/20 focus:ring-1 focus:ring-white/20 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fetchCandidateImages(imagePickerSearch, type)}
+                  disabled={isSearchingImages || !imagePickerSearch.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-zinc-800 px-3 py-2 text-xs font-medium text-zinc-200 transition-colors hover:border-white/20 hover:bg-zinc-700 hover:text-white disabled:opacity-50"
+                >
+                  {isSearchingImages ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
+                  ) : (
+                    <SearchIcon className="h-3.5 w-3.5" />
+                  )}
+                  <span>{locale === 'pt-BR' ? 'Buscar' : 'Search'}</span>
+                </button>
+              </div>
+
+              {/* Status & Count info */}
+              <div className="mb-3 flex items-center justify-between px-0.5 text-[11px] text-zinc-400">
+                <span>{t.imagePicker.foundCount(allCandidateImages.length)}</span>
+                {isSearchingImages && (
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>{t.imagePicker.loading}</span>
+                  </span>
+                )}
+              </div>
+
+              {/* Candidate Images Grid */}
+              <div className="flex-1 overflow-y-auto pr-1">
+                {isSearchingImages && allCandidateImages.length === 0 ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 py-4">
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <div
+                        key={n}
+                        className="aspect-[2/3] animate-pulse rounded-xl border border-white/5 bg-zinc-900/50"
+                      />
+                    ))}
+                  </div>
+                ) : allCandidateImages.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 py-1">
+                    {allCandidateImages.map((imgUrl, idx) => {
+                      const isSelected = coverImage === imgUrl;
+                      return (
+                        <div
+                          key={`${imgUrl}-${idx}`}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => handleSelectCoverImage(imgUrl)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleSelectCoverImage(imgUrl);
+                            }
+                          }}
+                          className={`group relative aspect-[2/3] cursor-pointer overflow-hidden rounded-xl border transition-all duration-200 ${
+                            isSelected
+                              ? 'border-emerald-400 ring-2 ring-emerald-400/40 shadow-lg shadow-emerald-500/15'
+                              : 'border-white/10 bg-black/40 hover:border-white/30 hover:scale-[1.02] hover:shadow-md'
+                          }`}
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Candidate cover ${idx + 1}`}
+                            onError={(e) => {
+                              // If image fails, hide its container cleanly
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) parent.style.display = 'none';
+                            }}
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+
+                          {/* Selected Pill Badge */}
+                          {isSelected && (
+                            <div className="absolute top-2 right-2 flex items-center gap-1 rounded-md border border-emerald-400/40 bg-emerald-950/90 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-300 shadow-md backdrop-blur-md">
+                              <Check className="h-3 w-3" />
+                              <span>{t.imagePicker.selected}</span>
+                            </div>
+                          )}
+
+                          {/* Hover Vignette Overlay */}
+                          <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/80 via-black/20 to-transparent p-2.5 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                            <span className="rounded-lg border border-white/20 bg-white/20 px-2.5 py-1 text-[10px] font-semibold text-white shadow-md backdrop-blur-md">
+                              {isSelected ? t.imagePicker.selected : t.imagePicker.selectImage}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <ImageIcon className="mb-2 h-8 w-8 text-zinc-600" />
+                    <p className="text-xs font-medium text-zinc-300">
+                      {t.imagePicker.noImages}
+                    </p>
+                    <p className="mt-1 max-w-xs text-[11px] text-zinc-500">
+                      {t.imagePicker.noImagesSub}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Image Picker Footer */}
+              <div className="mt-4 flex items-center justify-end border-t border-white/[0.08] pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsImagePickerOpen(false)}
+                  className="rounded-xl border border-white/10 bg-zinc-800/80 px-4 py-2 text-xs font-medium text-zinc-300 transition-colors hover:border-white/20 hover:text-white"
+                >
+                  {t.imagePicker.close}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
