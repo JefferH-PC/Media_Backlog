@@ -51,12 +51,12 @@ export async function GET(request: Request) {
 }
 
 // -------------------------------------------------------------
-// 1. Series Lookup (Primary: TVMaze - 100% Free, No Key Needed)
+// 1. Series Lookup: Auto-fills Year & Seasons (TVMaze)
 // -------------------------------------------------------------
 async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
 
-  // If TMDB key is provided, prefer TMDB
+  // If TMDB key is provided
   const tmdbKey = process.env.TMDB_API_KEY;
   if (tmdbKey) {
     try {
@@ -64,13 +64,28 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
       const res = await fetch(tmdbUrl, { next: { revalidate: 3600 } });
       if (res.ok) {
         const data = await res.json();
-        for (const item of (data.results || []).slice(0, 5)) {
+        const candidateShows = (data.results || []).slice(0, 3);
+        for (const item of candidateShows) {
           if (item.poster_path) {
+            let totalSeasons = 1;
+            try {
+              const detailRes = await fetch(
+                `https://api.themoviedb.org/3/tv/${item.id}?api_key=${tmdbKey}`
+              );
+              if (detailRes.ok) {
+                const detail = await detailRes.json();
+                if (detail.number_of_seasons) {
+                  totalSeasons = detail.number_of_seasons;
+                }
+              }
+            } catch {}
+
             results.push({
               title: item.name || item.original_name,
               year: item.first_air_date ? item.first_air_date.slice(0, 4) : undefined,
               coverImage: `https://image.tmdb.org/t/p/w500${item.poster_path}`,
               type: 'series',
+              seasons: totalSeasons,
               description: item.overview,
             });
           }
@@ -90,15 +105,35 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
     );
     if (res.ok) {
       const data = await res.json();
-      for (const item of (data || []).slice(0, 5)) {
+      const topItems = (data || []).slice(0, 4);
+
+      for (const item of topItems) {
         const show = item.show;
         if (!show) continue;
         const cover = show.image?.original || show.image?.medium;
         if (cover) {
+          // Fetch seasons count
+          let totalSeasons = 1;
+          try {
+            const seasonsRes = await fetch(
+              `https://api.tvmaze.com/shows/${show.id}/seasons`,
+              { headers: { 'User-Agent': USER_AGENT } }
+            );
+            if (seasonsRes.ok) {
+              const seasonsData = await seasonsRes.json();
+              if (Array.isArray(seasonsData) && seasonsData.length > 0) {
+                totalSeasons = seasonsData.length;
+              }
+            }
+          } catch {}
+
           const platformName = show.network?.name || show.webChannel?.name;
+          const premierYear = show.premiered ? show.premiered.slice(0, 4) : undefined;
+
           results.push({
             title: show.name,
-            year: show.premiered ? show.premiered.slice(0, 4) : undefined,
+            year: premierYear,
+            seasons: totalSeasons,
             coverImage: cover.replace('http:', 'https:'),
             type: 'series',
             platform: platformName || undefined,
@@ -115,7 +150,7 @@ async function lookupSeries(query: string): Promise<MediaLookupResult[]> {
 }
 
 // -------------------------------------------------------------
-// 2. Books Lookup (Open Library - 100% Free, No Key Needed)
+// 2. Books Lookup: Auto-fills Author & Year (Open Library)
 // -------------------------------------------------------------
 async function lookupBooks(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
@@ -132,9 +167,9 @@ async function lookupBooks(query: string): Promise<MediaLookupResult[]> {
           results.push({
             title: doc.title,
             year: doc.first_publish_year ? String(doc.first_publish_year) : undefined,
+            author: doc.author_name?.[0] || 'Unknown Author',
             coverImage: `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg`,
             type: 'books',
-            author: doc.author_name?.[0] || 'Unknown Author',
             publisher: doc.publisher?.[0] || 'Unknown Publisher',
           });
         }
@@ -148,7 +183,7 @@ async function lookupBooks(query: string): Promise<MediaLookupResult[]> {
 }
 
 // -------------------------------------------------------------
-// 3. Games Lookup (Steam Store API + Wikipedia fallback)
+// 3. Games Lookup: Auto-fills Year & Developer (Steam + Wiki)
 // -------------------------------------------------------------
 async function lookupGames(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
@@ -158,15 +193,16 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
   if (rawgKey) {
     try {
       const res = await fetch(
-        `https://api.rawg.io/api/games?key=${rawgKey}&search=${encodeURIComponent(query)}&page_size=5`
+        `https://api.rawg.io/api/games?key=${rawgKey}&search=${encodeURIComponent(query)}&page_size=4`
       );
       if (res.ok) {
         const data = await res.json();
-        for (const g of (data.results || []).slice(0, 5)) {
+        for (const g of (data.results || []).slice(0, 4)) {
           if (g.background_image) {
             results.push({
               title: g.name,
               year: g.released ? g.released.slice(0, 4) : undefined,
+              developer: g.developers?.[0]?.name,
               coverImage: g.background_image,
               type: 'games',
               platform: g.platforms?.[0]?.platform?.name,
@@ -180,7 +216,7 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
     }
   }
 
-  // 1. Steam Store Search (Vertical 600x900 Box Art)
+  // 1. Steam Store Search + App Details
   try {
     const res = await fetch(
       `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(query)}&l=english&cc=US`,
@@ -188,10 +224,35 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
     );
     if (res.ok) {
       const data = await res.json();
-      for (const item of (data.items || []).slice(0, 4)) {
+      const items = (data.items || []).slice(0, 4);
+
+      for (const item of items) {
         if (item.id) {
+          let developer: string | undefined = undefined;
+          let year: string | undefined = undefined;
+
+          try {
+            const detailRes = await fetch(
+              `https://store.steampowered.com/api/appdetails?appids=${item.id}&l=english`,
+              { headers: { 'User-Agent': USER_AGENT } }
+            );
+            if (detailRes.ok) {
+              const detailJson = await detailRes.json();
+              const appData = detailJson[String(item.id)]?.data;
+              if (appData) {
+                developer = appData.developers?.[0];
+                const yearMatch = appData.release_date?.date?.match(/\b(19\d\d|20\d\d)\b/);
+                if (yearMatch) {
+                  year = yearMatch[1];
+                }
+              }
+            }
+          } catch {}
+
           results.push({
             title: item.name,
+            year,
+            developer,
             coverImage: `https://cdn.akamai.steamstatic.com/steam/apps/${item.id}/library_600x900.jpg`,
             type: 'games',
             platform: 'Steam',
@@ -221,11 +282,37 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
             if (sumRes.ok) {
               const sum = await sumRes.json();
               if (sum.thumbnail?.source) {
-                // Extract year if available from description e.g. "2023 video game"
-                const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/);
+                let developer: string | undefined = undefined;
+                let year: string | undefined = undefined;
+
+                try {
+                  const parseRes = await fetch(
+                    `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page.key)}&prop=wikitext&format=json&section=0`,
+                    { headers: { 'User-Agent': USER_AGENT } }
+                  );
+                  if (parseRes.ok) {
+                    const parseData = await parseRes.json();
+                    const wt = parseData.parse?.wikitext?.['*'] || '';
+                    const devMatch = wt.match(/developer\s*=\s*(?:\[\[(?:[^|\]]*\|)?([^\]]+)\]\]|([^\n|]+))/i);
+                    if (devMatch) {
+                      developer = (devMatch[1] || devMatch[2]).replace(/\{\{[^}]*\}\}/g, '').trim();
+                    }
+                    const yearMatch = wt.match(/released\s*=\s*.*?(\d{4})/i) || sum.description?.match(/\b(19\d\d|20\d\d)\b/);
+                    if (yearMatch) {
+                      year = yearMatch[1];
+                    }
+                  }
+                } catch {}
+
+                if (!year) {
+                  const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/);
+                  if (yearMatch) year = yearMatch[1];
+                }
+
                 results.push({
                   title: sum.title.replace(/\s*\(video game\)/i, ''),
-                  year: yearMatch ? yearMatch[1] : undefined,
+                  year,
+                  developer,
                   coverImage: sum.thumbnail.source,
                   type: 'games',
                   description: sum.description,
@@ -245,10 +332,21 @@ async function lookupGames(query: string): Promise<MediaLookupResult[]> {
 }
 
 // -------------------------------------------------------------
-// 4. Movies Lookup (TMDB or Wikipedia + iTunes)
+// 4. Movies Lookup: Auto-fills Release Year & Duration (Wiki / TMDB)
 // -------------------------------------------------------------
 async function lookupMovies(query: string): Promise<MediaLookupResult[]> {
   const results: MediaLookupResult[] = [];
+
+  // Helper to format minutes to "Xh Ym"
+  const formatDuration = (totalMinutes: number): string => {
+    if (!totalMinutes || totalMinutes <= 0) return '2h 00m';
+    const hours = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    if (hours > 0) {
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    return `${mins}m`;
+  };
 
   // 1. If TMDB key provided
   const tmdbKey = process.env.TMDB_API_KEY;
@@ -259,11 +357,25 @@ async function lookupMovies(query: string): Promise<MediaLookupResult[]> {
       );
       if (res.ok) {
         const data = await res.json();
-        for (const item of (data.results || []).slice(0, 5)) {
+        for (const item of (data.results || []).slice(0, 4)) {
           if (item.poster_path) {
+            let duration = '2h 00m';
+            try {
+              const detailRes = await fetch(
+                `https://api.themoviedb.org/3/movie/${item.id}?api_key=${tmdbKey}`
+              );
+              if (detailRes.ok) {
+                const detail = await detailRes.json();
+                if (detail.runtime) {
+                  duration = formatDuration(detail.runtime);
+                }
+              }
+            } catch {}
+
             results.push({
               title: item.title || item.original_title,
               year: item.release_date ? item.release_date.slice(0, 4) : undefined,
+              duration,
               coverImage: `https://image.tmdb.org/t/p/w500${item.poster_path}`,
               type: 'movies',
               description: item.overview,
@@ -273,11 +385,11 @@ async function lookupMovies(query: string): Promise<MediaLookupResult[]> {
         if (results.length > 0) return results;
       }
     } catch {
-      // Fall through
+      // Fall through to Wikipedia
     }
   }
 
-  // 2. Wikipedia Theatrical Movie Poster Search
+  // 2. Wikipedia Theatrical Movie Poster + Infobox Runtime & Year Search
   try {
     const searchRes = await fetch(
       `https://en.wikipedia.org/w/rest.php/v1/search/page?q=${encodeURIComponent(query + ' film')}&limit=3`,
@@ -294,10 +406,45 @@ async function lookupMovies(query: string): Promise<MediaLookupResult[]> {
           if (sumRes.ok) {
             const sum = await sumRes.json();
             if (sum.thumbnail?.source) {
-              const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/);
+              let duration: string | undefined = undefined;
+              let year: string | undefined = undefined;
+
+              // Parse section 0 infobox for runtime & release date
+              try {
+                const parseRes = await fetch(
+                  `https://en.wikipedia.org/w/api.php?action=parse&page=${encodeURIComponent(page.key)}&prop=wikitext&format=json&section=0`,
+                  { headers: { 'User-Agent': USER_AGENT } }
+                );
+                if (parseRes.ok) {
+                  const parseData = await parseRes.json();
+                  const wt = parseData.parse?.wikitext?.['*'] || '';
+
+                  // Match runtime
+                  const runtimeMatch = wt.match(/runtime\s*=\s*(?:\{\{[^}]*\}\}\s*)?(\d+)\s*(?:min|minutes|\b)/i);
+                  if (runtimeMatch) {
+                    const mins = parseInt(runtimeMatch[1], 10);
+                    if (mins > 0) {
+                      duration = formatDuration(mins);
+                    }
+                  }
+
+                  // Match year
+                  const dateMatch = wt.match(/release_date\s*=\s*.*?(\d{4})/i);
+                  if (dateMatch) {
+                    year = dateMatch[1];
+                  }
+                }
+              } catch {}
+
+              if (!year) {
+                const yearMatch = sum.description?.match(/\b(19\d\d|20\d\d)\b/) || sum.extract?.match(/\b(19\d\d|20\d\d)\b/);
+                if (yearMatch) year = yearMatch[1];
+              }
+
               results.push({
                 title: sum.title.replace(/\s*\(\d{4}\s*film\)/i, '').replace(/\s*\(film\)/i, ''),
-                year: yearMatch ? yearMatch[1] : undefined,
+                year,
+                duration: duration || '2h 00m',
                 coverImage: sum.thumbnail.source,
                 type: 'movies',
                 description: sum.description,

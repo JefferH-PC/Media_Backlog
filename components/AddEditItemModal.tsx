@@ -224,9 +224,11 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
             setCoverImage(top.coverImage);
             setAutoAppliedTitle(top.title);
             if (top.year) setYear(String(top.year));
-            if (top.developer && type === 'games') setDeveloper(top.developer);
-            if (top.author && type === 'books') setAuthor(top.author);
-            if (top.publisher && type === 'books') setPublisher(top.publisher);
+            if (type === 'games' && top.developer) setDeveloper(top.developer);
+            if (type === 'movies' && top.duration) setDuration(top.duration);
+            if (type === 'series' && top.seasons) setSeasons(String(top.seasons));
+            if (type === 'books' && top.author) setAuthor(top.author);
+            if (type === 'books' && top.publisher) setPublisher(top.publisher);
             if (top.platform && !platform) setPlatform(top.platform);
           }
         }
@@ -253,9 +255,11 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
     setAutoAppliedTitle(suggestion.title);
     setHasManualCover(false);
     if (suggestion.year) setYear(String(suggestion.year));
-    if (suggestion.developer && type === 'games') setDeveloper(suggestion.developer);
-    if (suggestion.author && type === 'books') setAuthor(suggestion.author);
-    if (suggestion.publisher && type === 'books') setPublisher(suggestion.publisher);
+    if (type === 'games' && suggestion.developer) setDeveloper(suggestion.developer);
+    if (type === 'movies' && suggestion.duration) setDuration(suggestion.duration);
+    if (type === 'series' && suggestion.seasons) setSeasons(String(suggestion.seasons));
+    if (type === 'books' && suggestion.author) setAuthor(suggestion.author);
+    if (type === 'books' && suggestion.publisher) setPublisher(suggestion.publisher);
     if (suggestion.platform) setPlatform(suggestion.platform);
     setShowSuggestions(false);
   };
@@ -531,10 +535,32 @@ export const AddEditItemModal: React.FC<AddEditItemModalProps> = ({
                             {item.title}
                           </p>
                           <p className="truncate text-[10px] text-zinc-400">
-                            {item.year ? `${item.year} ` : ''}
-                            {item.developer ? `· ${item.developer} ` : ''}
-                            {item.author ? `· ${item.author} ` : ''}
-                            {item.platform ? `· ${item.platform}` : ''}
+                            {type === 'games' && (
+                              <span>
+                                {item.year ? `${item.year} ` : ''}
+                                {item.developer ? `· ${item.developer} ` : ''}
+                                {item.platform ? `· ${item.platform}` : ''}
+                              </span>
+                            )}
+                            {type === 'movies' && (
+                              <span>
+                                {item.year ? `${item.year} ` : ''}
+                                {item.duration ? `· ${item.duration}` : ''}
+                              </span>
+                            )}
+                            {type === 'series' && (
+                              <span>
+                                {item.year ? `${item.year} ` : ''}
+                                {item.seasons ? `· ${item.seasons === 1 ? '1 Season' : `${item.seasons} Seasons`} ` : ''}
+                                {item.platform ? `· ${item.platform}` : ''}
+                              </span>
+                            )}
+                            {type === 'books' && (
+                              <span>
+                                {item.author ? `${item.author} ` : ''}
+                                {item.year ? `· ${item.year}` : ''}
+                              </span>
+                            )}
                           </p>
                         </div>
                       </button>
